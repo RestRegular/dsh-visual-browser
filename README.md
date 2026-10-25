@@ -37,7 +37,10 @@ dependencies; it talks CDP over the built-in WebSocket).
 2. Ask the Agent something that needs a website, for example
    *"打开 example.com 看看首页写了什么"*. The Agent calls `browser_open`.
 3. Watch the picture. Click, drag, wheel and type straight into it; the toolbar
-   has back / forward / reload / stop, and the address bar opens any URL.
+   has back / forward / reload / stop, and the address bar opens any URL. Over
+   the picture the native pointer is hidden and the panel draws the cursor, so
+   what you see is the page's own position; dragging selects text, moves
+   sliders and pans real scrollbars (the browser keeps its scrollbars).
 
 The operation log at the bottom remembers the Agent's actions and yours. Click
 its header to fold it away, or scroll it when the list is longer than the pane.
@@ -147,6 +150,12 @@ Chrome is killed with its process tree when the plugin unloads.
   it performs no extra authentication, matching the other local panel routes.
 - The stream is a raw binary response on purpose: `multipart/x-mixed-replace`
   parsing differs between browser builds, so the panel parses frames itself.
+- One page per plugin: `browser_open` navigates the page the panel shows. Page
+  tabs inside the panel are not implemented (the model-facing tools stay
+  single-page, which keeps "the current page" unambiguous).
+- Requests time out and the panel always retries, so a connection that a sleep
+  or a host restart black-holed recovers on its own instead of needing a page
+  refresh.
 - Headless mode is the default. Some sites behave differently headless; set
   `headless: false` when a site insists on a window.
 

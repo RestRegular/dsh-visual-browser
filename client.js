@@ -153,12 +153,14 @@
     // ---- stage ----------------------------------------------------------
     '.dvb-stage{position:relative;flex:1 1 auto;min-height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);border-bottom:1px solid var(--dsw-alias-border-l1);outline:none}',
     '.dvb-stage[data-focus="true"]{background:var(--dsw-alias-interactive-bg-hover)}',
-    '.dvb-live{display:block;max-width:100%;max-height:100%;width:auto;height:auto;border-radius:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);touch-action:none;user-select:none;-webkit-user-drag:none;cursor:default}',
+    '.dvb-live{display:block;max-width:100%;max-height:100%;width:auto;height:auto;border-radius:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);touch-action:none;user-select:none;-webkit-user-drag:none;cursor:none}',
     '.dvb-live[data-busy="true"]{cursor:progress}',
-    '.dvb-cursor{position:absolute;left:0;top:0;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:2px solid var(--dsw-alias-brand-primary);box-shadow:0 0 0 1px var(--dsw-alias-bg-base);pointer-events:none;opacity:0;will-change:transform}',
-    '.dvb-cursor[data-visible="true"]{opacity:.85}',
+    '.dvb-cursor{position:absolute;left:0;top:0;width:18px;height:22px;margin:-1px 0 0 -2px;pointer-events:none;opacity:0;will-change:transform;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}',
+    '.dvb-cursor[data-visible="true"]{opacity:1}',
     '.dvb-ripple{position:absolute;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--dsw-alias-brand-primary);opacity:0;pointer-events:none;will-change:transform,opacity}',
-    '.dvb-veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;border:0;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 78%,transparent);cursor:pointer}',
+    '.dvb-veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 78%,transparent);pointer-events:none}',
+    '.dvb-retry{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;border-radius:13px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;white-space:nowrap;cursor:pointer;pointer-events:auto}',
+    '.dvb-retry:hover{background:var(--dsw-alias-interactive-bg-hover)}',
     '.dvb-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px 24px;color:var(--dsw-alias-label-secondary)}',
     '.dvb-empty-title{font-size:13.5px;font-weight:600;color:var(--dsw-alias-label-primary)}',
     '.dvb-empty-desc{max-width:340px;font-size:12px}',
@@ -270,27 +272,50 @@
       // Host API
       // -------------------------------------------------------------------
 
+      // Every request settles: a socket that a sleep/resume or a host restart
+      // black-holed used to leave the caller waiting forever, which froze the
+      // panel until a page refresh.
+      var REQUEST_TIMEOUT_MS = 8000;
+      // The poll is a tiny local JSON read: a slow answer means a dead socket,
+      // not a slow host, so it gives up sooner than the action requests.
+      var POLL_TIMEOUT_MS = 3500;
+
       async function requestJson(path, options) {
         var init = { method: (options && options.method) || 'GET', headers: {} };
         if (options && options.body !== undefined) {
           init.headers['content-type'] = 'application/json';
           init.body = JSON.stringify(options.body);
         }
-        var response = await fetch(API + path, init);
-        var text = await response.text();
-        var data = null;
-        if (text) {
-          try {
-            data = JSON.parse(text);
-          } catch {
-            data = null;
+        var controller = typeof AbortController === 'function' ? new AbortController() : null;
+        if (controller !== null) init.signal = controller.signal;
+        var timer = window.setTimeout(function () {
+          if (controller !== null) {
+            try {
+              controller.abort();
+            } catch {
+              /* already finished */
+            }
           }
+        }, (options && options.timeoutMs) || REQUEST_TIMEOUT_MS);
+        try {
+          var response = await fetch(API + path, init);
+          var text = await response.text();
+          var data = null;
+          if (text) {
+            try {
+              data = JSON.parse(text);
+            } catch {
+              data = null;
+            }
+          }
+          if (!response.ok) {
+            var message = data && data.error && data.error.message ? data.error.message : 'HTTP ' + response.status;
+            throw new Error(message);
+          }
+          return data || {};
+        } finally {
+          window.clearTimeout(timer);
         }
-        if (!response.ok) {
-          var message = data && data.error && data.error.message ? data.error.message : 'HTTP ' + response.status;
-          throw new Error(message);
-        }
-        return data || {};
       }
 
       function pad(value) {
@@ -338,34 +363,70 @@
           return kept.slice(0, 120);
         };
 
+        var inFlightTimeout = 8000;
+        // A batch that has been in flight this long is on a dead socket: give up
+        // on it rather than hold every later click behind it.
+        var staleAfter = 1200;
+        var activeRequest = 0;
+        var inFlightSince = 0;
+
         var flush = function () {
           frame = 0;
-          if (disposed || inFlight) return;
+          if (disposed) return;
+          if (inFlight && Date.now() - inFlightSince > staleAfter) {
+            activeRequest = 0;
+            inFlight = false;
+          }
+          if (inFlight) return;
           if (queue.length === 0) return;
           var batch = compact(queue);
           queue = [];
           if (batch.length === 0) return;
+          var requestId = ++activeRequest;
           inFlight = true;
+          inFlightSince = Date.now();
+          var controller = typeof AbortController === 'function' ? new AbortController() : null;
+          var done = function () {
+            if (requestId !== activeRequest) return;
+            window.clearTimeout(watchdog);
+            inFlight = false;
+            if (disposed) return;
+            if (queue.length > 0 && frame === 0) frame = window.requestAnimationFrame(flush);
+          };
+          // A request that never answers must not wedge every later click.
+          var watchdog = window.setTimeout(function () {
+            try {
+              if (controller !== null) controller.abort();
+            } catch {
+              /* already settled */
+            }
+            done();
+          }, inFlightTimeout);
           fetch(API + '/input', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ events: batch }),
             keepalive: true,
+            ...(controller !== null ? { signal: controller.signal } : {}),
           })
             .catch(function () {
               /* a dropped input batch is not worth a visible error */
             })
-            .then(function () {
-              inFlight = false;
-              if (disposed) return;
-              if (queue.length > 0 && frame === 0) frame = window.requestAnimationFrame(flush);
-            });
+            .then(done, done);
         };
 
         return {
           send: function (event) {
             if (disposed) return;
             queue.push(event);
+            // Never let a stalled connection grow an unbounded backlog: drop the
+            // oldest moves and wheel ticks, which are only positions and deltas.
+            for (var index = 0; index < queue.length && queue.length > 480; index += 1) {
+              if (queue[index].t === 'wheel' || (queue[index].t === 'pointer' && queue[index].type === 'move')) {
+                queue.splice(index, 1);
+                index -= 1;
+              }
+            }
             if (frame !== 0) return;
             frame = window.requestAnimationFrame(flush);
           },
@@ -640,9 +701,11 @@
         var stageRef = useRef(null);
         var canvasRef = useRef(null);
         var liveRef = useRef(false);
+        var lastFrameAtRef = useRef(0);
         var cursorRef = useRef(null);
         var rippleRef = useRef(null);
         var pointerRef = useRef({ down: false, id: 0, x: 0, y: 0, moved: 0, clicks: 1, lastUpAt: 0, lastUpX: 0, lastUpY: 0, button: 0 });
+        var pointerUpRef = useRef(null);
         var stateJsonRef = useRef('');
         var sender = useMemo(function () {
           return createSender();
@@ -666,14 +729,18 @@
         }, [ctx]);
 
         // State poll: identity-compare the JSON so an idle panel never re-renders.
+        // A failed or stalled round always schedules the next one, so the panel
+        // can never freeze on a dead connection.
         useEffect(
           function () {
             var cancelled = false;
             var timer = null;
+            var misses = 0;
             var poll = async function () {
               try {
-                var data = await requestJson('/state');
+                var data = await requestJson('/state', { timeoutMs: POLL_TIMEOUT_MS });
                 if (cancelled) return;
+                misses = 0;
                 setReachable(true);
                 if (data.state) {
                   var next = JSON.stringify(data.state);
@@ -683,11 +750,13 @@
                   }
                 }
               } catch {
-                if (!cancelled) setReachable(false);
+                if (cancelled) return;
+                misses += 1;
+                setReachable(false);
               }
-              if (!cancelled) {
-                timer = window.setTimeout(poll, document.visibilityState === 'hidden' ? 4000 : 900);
-              }
+              if (cancelled) return;
+              var delay = document.visibilityState === 'hidden' ? 4000 : misses === 0 ? 900 : Math.min(5000, 600 * misses);
+              timer = window.setTimeout(poll, delay);
             };
             poll();
             return function () {
@@ -730,6 +799,18 @@
             var buffer = new Uint8Array(0);
             var pendingFrame = null;
             var decoding = false;
+            // If the response never yields a frame (a host that went away mid
+            // handshake, a proxy that black-holes the socket), reconnect instead
+            // of showing "connecting" forever.
+            var connectTimer = window.setTimeout(function () {
+              connectTimer = 0;
+              if (cancelled || liveRef.current) return;
+              try {
+                controller.abort();
+              } catch {
+                /* already done */
+              }
+            }, 9000);
 
             var draw = async function (jpeg) {
               var bitmap = await createImageBitmap(new Blob([jpeg], { type: 'image/jpeg' }));
@@ -741,6 +822,11 @@
                 }
                 var context = canvas.getContext('2d');
                 if (context) context.drawImage(bitmap, 0, 0);
+                lastFrameAtRef.current = Date.now();
+                if (connectTimer !== 0) {
+                  window.clearTimeout(connectTimer);
+                  connectTimer = 0;
+                }
                 if (!liveRef.current) {
                   liveRef.current = true;
                   setLive(true);
@@ -815,6 +901,7 @@
 
             return function () {
               cancelled = true;
+              if (connectTimer !== 0) window.clearTimeout(connectTimer);
               controller.abort();
               try {
                 if (reader) void reader.cancel();
@@ -951,6 +1038,11 @@
             }
           }
           var pointer = pointerRef.current;
+          if (pointer.down) {
+            // The previous gesture never saw its release (pointer left the
+            // window, capture was lost): close it before starting this one.
+            closeGesture({ clientX: event.clientX, clientY: event.clientY, currentTarget: event.currentTarget, pointerId: pointer.id, buttons: 0 });
+          }
           pointer.down = true;
           pointer.id = event.pointerId;
           pointer.x = point.x;
@@ -999,7 +1091,10 @@
           sender.send({ t: 'pointer', type: 'move', x: point.x, y: point.y, buttons: event.buttons || 0, modifiers: modifierMask(event) });
         };
 
-        var onPointerUp = function (event) {
+        // One place closes a gesture; the canvas handler, the window fallback and
+        // a new press all use it, so a released-outside or a lost capture can
+        // never leave the page stuck mid-drag.
+        var closeGesture = function (event) {
           var pointer = pointerRef.current;
           if (!pointer.down) return;
           if (!state.running || !state.allowUserControl) {
@@ -1034,6 +1129,29 @@
           });
           sendFlush();
         };
+
+        var onPointerUp = function (event) {
+          closeGesture(event);
+        };
+        pointerUpRef.current = closeGesture;
+
+        // Pointer capture is a nicety: if it is unavailable (or lost), the
+        // release can land anywhere, so close the gesture from the window too.
+        useEffect(
+          function () {
+            var onWindowUp = function (event) {
+              if (!pointerRef.current.down) return;
+              if (typeof pointerUpRef.current === 'function') pointerUpRef.current(event);
+            };
+            window.addEventListener('pointerup', onWindowUp, true);
+            window.addEventListener('pointercancel', onWindowUp, true);
+            return function () {
+              window.removeEventListener('pointerup', onWindowUp, true);
+              window.removeEventListener('pointercancel', onWindowUp, true);
+            };
+          },
+          [],
+        );
 
         // Native wheel listener: React's is passive in places, and the picture
         // must never scroll the sidebar around it.
@@ -1121,6 +1239,26 @@
             return value + 1;
           });
         };
+
+        // Coming back from a hidden tab or a sleeping laptop: a socket that died
+        // meanwhile reads as "no frames", so ask for a fresh stream.
+        useEffect(
+          function () {
+            var onVisibility = function () {
+              if (document.visibilityState !== 'visible' || !state.running) return;
+              if (Date.now() - lastFrameAtRef.current > 15000) {
+                setStreamRetry(function (value) {
+                  return value + 1;
+                });
+              }
+            };
+            document.addEventListener('visibilitychange', onVisibility);
+            return function () {
+              document.removeEventListener('visibilitychange', onVisibility);
+            };
+          },
+          [state.running],
+        );
 
         // Keeps a stored split inside the panel: the picture always keeps its
         // reserve, however the pane is resized later.
@@ -1439,19 +1577,34 @@
                   h('div', { className: 'dvb-empty-title' }, t('empty.title')),
                   h('div', { className: 'dvb-empty-desc' }, t('empty.desc')),
                 ),
-            state.running && !live
+            state.running && !live ? h('div', { className: 'dvb-veil' }, t(retrying ? 'error.frame' : 'connecting')) : null,
+            // The picture recovering must never block the page: the veil is
+            // click-through and only this pill takes the pointer.
+            state.running && retrying
               ? h(
                   'button',
-                  {
-                    type: 'button',
-                    className: 'dvb-veil',
-                    onClick: retryStream,
-                    title: t('action.reconnect'),
-                  },
-                  t(retrying ? 'error.frame' : 'connecting'),
+                  { type: 'button', className: 'dvb-retry', title: t('action.reconnect'), onClick: retryStream },
+                  icon('reload', 13),
+                  t('action.reconnect'),
                 )
               : null,
-            h('span', { className: 'dvb-cursor', ref: cursorRef, 'data-visible': 'false' }),
+            h(
+              'span',
+              { className: 'dvb-cursor', ref: cursorRef, 'data-visible': 'false', 'aria-hidden': 'true' },
+              // The pointer shape, not a ring: the page's own cursor is not part
+              // of the screencast, so this is the only cursor the user sees.
+              h(
+                'svg',
+                { width: 18, height: 22, viewBox: '0 0 18 22', fill: 'none', 'aria-hidden': true, focusable: false },
+                h('path', {
+                  d: 'M2 1.5 2 17.2 6.3 13.3 9 19.6 12 18.3 9.3 12.1 15.4 12.1 Z',
+                  fill: '#fff',
+                  stroke: '#111',
+                  strokeWidth: 1.2,
+                  strokeLinejoin: 'round',
+                }),
+              ),
+            ),
             h('span', { className: 'dvb-ripple', ref: rippleRef }),
           ),
           state.running && state.allowUserControl

@@ -64,6 +64,10 @@ assert.ok(!client.includes('previewSeq'), 'no frame replay is left in the panel'
 assert.ok(client.includes("'dvb-log-body'"), 'the operation log is a scroll container');
 assert.ok(client.includes("role: 'separator'"), 'the log height has a drag handle');
 assert.ok(client.includes('LOG_HEIGHT_KEY') && client.includes('localStorage'), 'the chosen split is remembered');
+assert.ok(client.includes('cursor:none'), 'the native pointer hides over the picture');
+assert.ok(client.includes("className: 'dvb-cursor'"), 'the panel draws its own pointer');
+assert.ok(!client.includes('requestJson(') || client.includes('AbortController'), 'requests can time out');
+assert.match(await readFile(join(root, 'lib/browser.js'), 'utf8'), /heldButton/, 'a held button is reported on moves so drags work');
 assert.ok(client.includes('--dsw-alias-interactive-bg-hover'), 'hover uses the interactive token, not a surface token');
 assert.ok(!/(^|\n)\s*(const|let)\s+[A-Za-z_$][\w$]*\s*=/.test(client.replace(/^\s*\/\/.*$/gm, '')) || client.trimStart().startsWith('(function'), 'client file is wrapped in an IIFE');
 
