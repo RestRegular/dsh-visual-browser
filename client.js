@@ -37,6 +37,9 @@
       'action.reload': '刷新页面',
       'action.open': '打开',
       'action.reconnect': '重新连接画面',
+      'tab.new': '新建页面',
+      'tab.close': '关闭这个页面',
+      'tab.untitled': '新页面',
       'url.placeholder': '输入网址，例如 example.com',
       'hint.interactive': '直接用鼠标操作画面；点一下画面后可用键盘输入',
       'hint.headless': '无头浏览器：窗口不可见，画面只在这里',
@@ -91,6 +94,9 @@
       'action.reload': 'Reload page',
       'action.open': 'Open',
       'action.reconnect': 'Reconnect the picture',
+      'tab.new': 'New page',
+      'tab.close': 'Close this page',
+      'tab.untitled': 'New page',
       'url.placeholder': 'Enter a URL, for example example.com',
       'hint.interactive': 'Click straight into the picture; click once to type with the keyboard',
       'hint.headless': 'Headless browser: no window to watch, the picture here is the browser',
@@ -146,6 +152,12 @@
     '.dvb-btn:disabled{opacity:.4;cursor:default}',
     '.dvb-btn[data-variant="primary"]{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);padding:0 10px}',
     '.dvb-btn[data-variant="primary"]:hover:not(:disabled){background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);filter:brightness(1.06)}',
+    '.dvb-tabs{flex:none;display:flex;gap:4px;padding:2px 8px 6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}',
+    '.dvb-tab{flex:none;display:flex;align-items:center;gap:2px;height:24px;padding:0 3px 0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0}',
+    '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
+    '.dvb-tab-label{display:block;max-width:140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0}',
+    '.dvb-tab-close{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0}',
+    '.dvb-tab-close:hover{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));color:var(--dsw-alias-label-primary)}',
     '.dvb-addr{flex:none;display:flex;align-items:center;gap:6px;padding:0 10px 8px;min-width:0}',
     '.dvb-input{flex:1 1 auto;min-width:0;height:28px;padding:0 9px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}',
     '.dvb-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
@@ -484,6 +496,11 @@
               h('path', { key: 'a', d: 'M19 12a7 7 0 1 1-2.1-5' }),
               h('path', { key: 'b', d: 'M19 4.5V9h-4.5' }),
             ]);
+          case 'plus':
+            return svg({ size: size }, [
+              h('path', { key: 'a', d: 'M12 5.5v13' }),
+              h('path', { key: 'b', d: 'M5.5 12h13' }),
+            ]);
           case 'chevron':
             return svg({ size: size || 12 }, [h('path', { key: 'a', d: 'M9.5 6l6 6-6 6' })]);
           case 'globe':
@@ -698,6 +715,8 @@
         var logRef = useRef(null);
         var logBodyRef = useRef(null);
         var splitRef = useRef(null);
+        var tabsRef = useRef(null);
+        var addrRef = useRef(null);
         var stageRef = useRef(null);
         var canvasRef = useRef(null);
         var liveRef = useRef(false);
@@ -1240,6 +1259,18 @@
           });
         };
 
+        useEffect(
+          function () {
+            var strip = tabsRef.current;
+            if (!strip) return;
+            var current = strip.querySelector('[data-current="true"]');
+            if (current && typeof current.scrollIntoView === 'function') {
+              current.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+          },
+          [state.activePageId],
+        );
+
         // Coming back from a hidden tab or a sleeping laptop: a socket that died
         // meanwhile reads as "no frames", so ask for a fresh stream.
         useEffect(
@@ -1387,6 +1418,25 @@
           commitLogHeight(null);
         };
 
+        var pages = Array.isArray(state.pages) ? state.pages : [];
+        var tabLabel = function (page) {
+          if (page.title) return page.title;
+          var short = shortUrl(page.url);
+          return short === '' || page.url === 'about:blank' ? t('tab.untitled') : short;
+        };
+
+        var openNewPage = function () {
+          void run('new-page', '/page', { action: 'new' }).then(function () {
+            window.setTimeout(function () {
+              var input = addrRef.current;
+              if (input) {
+                input.focus();
+                input.select();
+              }
+            }, 80);
+          });
+        };
+
         var kindLabel = function (kind) {
           var key = 'kind.' + kind;
           var text = t(key);
@@ -1408,7 +1458,7 @@
           { className: 'dvb-root', ref: rootRef },
           h(
             'div',
-            { className: 'dvb-bar' },
+            { key: 'bar', className: 'dvb-bar' },
             h('span', {
               className: 'dvb-dot',
               'data-on': String(state.running),
@@ -1467,6 +1517,18 @@
                 },
                 icon('reload', 16),
               ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dvb-btn',
+                  title: t('tab.new'),
+                  'aria-label': t('tab.new'),
+                  disabled: !state.running || Boolean(busy),
+                  onClick: openNewPage,
+                },
+                icon('plus', 16),
+              ),
               state.running
                 ? h(
                     'button',
@@ -1496,10 +1558,50 @@
                   ),
             ),
           ),
+          pages.length > 1
+            ? h(
+                'div',
+                { key: 'tabs', className: 'dvb-tabs', ref: tabsRef, role: 'tablist', 'aria-label': t('tab.new') },
+                pages.map(function (page) {
+                  return h(
+                    'div',
+                    { key: page.id, className: 'dvb-tab', 'data-current': String(page.active === true) },
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'dvb-tab-label',
+                        title: page.title || page.url || page.id,
+                        role: 'tab',
+                        'aria-selected': String(page.active === true),
+                        onClick: function () {
+                          if (page.active !== true) void run('select-page', '/page', { action: 'select', id: page.id });
+                        },
+                      },
+                      tabLabel(page),
+                    ),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'dvb-tab-close',
+                        title: t('tab.close'),
+                        'aria-label': t('tab.close'),
+                        onClick: function () {
+                          void run('close-page', '/page', { action: 'close', id: page.id });
+                        },
+                      },
+                      '×',
+                    ),
+                  );
+                }),
+              )
+            : null,
           h(
             'div',
-            { className: 'dvb-addr' },
+            { key: 'addr', className: 'dvb-addr' },
             h('input', {
+              ref: addrRef,
               className: 'dvb-input',
               type: 'text',
               spellCheck: false,
@@ -1527,11 +1629,12 @@
               t('action.open'),
             ),
           ),
-          error ? h('div', { className: 'dvb-error' }, error) : null,
-          !reachable ? h('div', { className: 'dvb-error' }, t('error.offline')) : null,
+          error ? h('div', { key: 'error', className: 'dvb-error' }, error) : null,
+          !reachable ? h('div', { key: 'offline', className: 'dvb-error' }, t('error.offline')) : null,
           h(
             'div',
             {
+              key: 'stage',
               className: 'dvb-stage',
               ref: stageRef,
               tabIndex: 0,
@@ -1610,7 +1713,7 @@
           state.running && state.allowUserControl
             ? h(
                 'div',
-                { className: 'dvb-hint' },
+                { key: 'hint', className: 'dvb-hint' },
                 h('span', null, t('hint.interactive')),
                 state.headless ? h('span', null, t('hint.headless')) : null,
               )
@@ -1636,6 +1739,7 @@
           h(
             'div',
             {
+              key: 'log',
               className: 'dvb-log',
               ref: logRef,
               'data-open': String(logOpen),

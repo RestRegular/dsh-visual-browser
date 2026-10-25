@@ -37,7 +37,11 @@ dependencies; it talks CDP over the built-in WebSocket).
 2. Ask the Agent something that needs a website, for example
    *"打开 example.com 看看首页写了什么"*. The Agent calls `browser_open`.
 3. Watch the picture. Click, drag, wheel and type straight into it; the toolbar
-   has back / forward / reload / stop, and the address bar opens any URL. Over
+   has back / forward / reload / **new page** / stop, and the address bar opens
+   any URL. Once there is more than one page a tab strip appears under the
+   toolbar: ＋ adds a page, a chip switches to it, its × closes it (the last page
+   stays). Every page is a real Chrome tab with its own history; only the active
+   one is streamed and receives input. Over
    the picture the native pointer is hidden and the panel draws the cursor, so
    what you see is the page's own position; dragging selects text, moves
    sliders and pans real scrollbars (the browser keeps its scrollbars).
@@ -150,9 +154,9 @@ Chrome is killed with its process tree when the plugin unloads.
   it performs no extra authentication, matching the other local panel routes.
 - The stream is a raw binary response on purpose: `multipart/x-mixed-replace`
   parsing differs between browser builds, so the panel parses frames itself.
-- One page per plugin: `browser_open` navigates the page the panel shows. Page
-  tabs inside the panel are not implemented (the model-facing tools stay
-  single-page, which keeps "the current page" unambiguous).
+- The model-facing tools act on the **active page**: `browser_open` navigates it
+  and every read/act applies to it, so "the current page" stays unambiguous while
+  you keep other pages open in the tab strip.
 - Requests time out and the panel always retries, so a connection that a sleep
   or a host restart black-holed recovers on its own instead of needing a page
   refresh.

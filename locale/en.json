@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Visual Browser",
-    "description": "One extra door under the right Sidebar's built-in Browser: a live picture of the Chrome the Agent drives, with real click, drag, wheel and keyboard control, plus a collapsible, scrollable action log — no screenshot polling, no frame replay."
+    "description": "One extra door under the right Sidebar's built-in Browser: a live picture of the Chrome the Agent drives, with page tabs, real click, drag, wheel and keyboard control, its own cursor, and a collapsible action log you can drag — no screenshot polling, no replay."
   }
 }

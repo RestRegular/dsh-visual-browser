@@ -68,6 +68,9 @@ assert.ok(client.includes('cursor:none'), 'the native pointer hides over the pic
 assert.ok(client.includes("className: 'dvb-cursor'"), 'the panel draws its own pointer');
 assert.ok(!client.includes('requestJson(') || client.includes('AbortController'), 'requests can time out');
 assert.match(await readFile(join(root, 'lib/browser.js'), 'utf8'), /heldButton/, 'a held button is reported on moves so drags work');
+assert.ok(client.includes("'dvb-tabs'") && client.includes("'dvb-tab-close'"), 'pages are tabs in the panel');
+assert.match(await readFile(join(root, 'lib/browser.js'), 'utf8'), /async newPage/, 'the host can hold more than one page');
+assert.ok(client.includes("key: 'stage'") && client.includes("key: 'log'"), 'root children keep stable keys so a tab change never remounts them');
 assert.ok(client.includes('--dsw-alias-interactive-bg-hover'), 'hover uses the interactive token, not a surface token');
 assert.ok(!/(^|\n)\s*(const|let)\s+[A-Za-z_$][\w$]*\s*=/.test(client.replace(/^\s*\/\/.*$/gm, '')) || client.trimStart().startsWith('(function'), 'client file is wrapped in an IIFE');
 
