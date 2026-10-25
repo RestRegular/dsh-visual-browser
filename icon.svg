@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Visual Browser">
+  <defs>
+    <linearGradient id="dvb-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4C6EF5"/>
+      <stop offset="1" stop-color="#7048E8"/>
+    </linearGradient>
+    <linearGradient id="dvb-glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#E9EDFF" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#dvb-bg)"/>
+  <rect x="40" y="52" width="176" height="152" rx="18" fill="url(#dvb-glass)"/>
+  <path d="M40 86h176" stroke="#4C6EF5" stroke-opacity="0.22" stroke-width="2"/>
+  <circle cx="58" cy="69" r="4.5" fill="#4C6EF5"/>
+  <circle cx="74" cy="69" r="4.5" fill="#4C6EF5" fill-opacity="0.62"/>
+  <circle cx="90" cy="69" r="4.5" fill="#4C6EF5" fill-opacity="0.34"/>
+  <path d="M128 103c-24 0-41 15-47 26 6 11 23 26 47 26s41-15 47-26c-6-11-23-26-47-26Z" fill="#4C6EF5" fill-opacity="0.14" stroke="#4C6EF5" stroke-width="6" stroke-linejoin="round"/>
+  <circle cx="128" cy="129" r="14" fill="#4C6EF5"/>
+  <path d="M173 150l36 15-16 6-7 17-13-38Z" fill="#1B2559" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round"/>
+</svg>

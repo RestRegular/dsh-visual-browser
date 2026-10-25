@@ -1,0 +1,71 @@
+{
+  "name": "@restregular/dsh-visual-browser",
+  "version": "0.1.0",
+  "description": "Visual browser for DeepSeek Harness: the Agent drives a real Chrome through a token-light numbered view of interactive elements (never the raw DOM), while the Web UI streams the live page frame, the click point of every action, and a replayable operation timeline the user can also take over by clicking the picture.",
+  "icon": "./icon.svg",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "lib/",
+    "locale/*.json",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RestRegular/dsh-visual-browser.git"
+  },
+  "homepage": "https://github.com/RestRegular/dsh-visual-browser#readme",
+  "bugs": {
+    "url": "https://github.com/RestRegular/dsh-visual-browser/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "browser",
+    "browser-automation",
+    "cdp",
+    "chrome-devtools-protocol",
+    "screenshot",
+    "visualization"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "license": "MIT",
+  "author": "RestRegular",
+  "scripts": {
+    "test": "node --check index.js && node --check client.js && node --check lib/browser.js && node test/snapshot.test.mjs && node test/scripts.test.mjs && node test/package.test.mjs"
+  }
+}

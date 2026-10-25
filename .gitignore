@@ -1,0 +1,6 @@
+node_modules/
+.dsh-trash/
+.dsh-trash
+*.log
+.DS_Store
+dsh-visual-browser-*.tgz
