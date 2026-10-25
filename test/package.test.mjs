@@ -62,6 +62,8 @@ assert.ok(client.includes('createImageBitmap'), 'frames decode off the main thre
 assert.ok(client.includes('/stream?r='), 'the panel reads the binary frame stream');
 assert.ok(!client.includes('previewSeq'), 'no frame replay is left in the panel');
 assert.ok(client.includes("'dvb-log-body'"), 'the operation log is a scroll container');
+assert.ok(client.includes("role: 'separator'"), 'the log height has a drag handle');
+assert.ok(client.includes('LOG_HEIGHT_KEY') && client.includes('localStorage'), 'the chosen split is remembered');
 assert.ok(client.includes('--dsw-alias-interactive-bg-hover'), 'hover uses the interactive token, not a surface token');
 assert.ok(!/(^|\n)\s*(const|let)\s+[A-Za-z_$][\w$]*\s*=/.test(client.replace(/^\s*\/\/.*$/gm, '')) || client.trimStart().startsWith('(function'), 'client file is wrapped in an IIFE');
 

@@ -47,6 +47,7 @@
       'timeline.empty': '还没有操作。Agent 的点击、输入与你自己的操作都会记录在这里。',
       'timeline.count': '条',
       'timeline.expand': '展开操作记录',
+      'timeline.resize': '上下拖动调整操作记录高度，双击复位',
       'timeline.collapse': '折叠操作记录',
       'error.offline': '连不上宿主路由（/visual-browser/api），请确认插件已启用且宿主仍在运行。',
       'error.frame': '画面流中断，正在重连…',
@@ -100,6 +101,7 @@
       'timeline.empty': 'No actions yet. Agent clicks, typing, and your own gestures are listed here.',
       'timeline.count': 'items',
       'timeline.expand': 'Expand the action log',
+      'timeline.resize': 'Drag up or down to resize the action log; double-click to reset',
       'timeline.collapse': 'Collapse the action log',
       'error.offline': 'Cannot reach the host route (/visual-browser/api). Check that the plugin is enabled and the host is running.',
       'error.frame': 'The picture stream dropped; reconnecting…',
@@ -170,6 +172,11 @@
     '.dvb-log-title{font-weight:600;color:var(--dsw-alias-label-secondary)}',
     '.dvb-log-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary)}',
     '.dvb-log-body{overflow-y:auto;overscroll-behavior:contain;max-height:min(44vh,320px);min-height:0;padding:0 6px 8px;display:flex;flex-direction:column;gap:1px}',
+'.dvb-log[data-sized="true"] .dvb-log-body{max-height:none;height:var(--dvb-log-h,200px)}',
+'.dvb-split{flex:none;display:flex;align-items:center;justify-content:center;height:11px;margin:-1px 0;padding:0;border:0;background:transparent;cursor:ns-resize;touch-action:none}',
+'.dvb-split::before{content:"";width:36px;height:3px;border-radius:2px;background:var(--dsw-alias-border-l2);transition:background .12s ease}',
+'.dvb-split:hover::before,.dvb-split[data-active="true"]::before{background:var(--dsw-alias-brand-primary)}',
+'.dvb-split:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-3px;border-radius:6px}',
     '.dvb-log-empty{padding:3px 6px 10px;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}',
     '.dvb-row{display:flex;align-items:baseline;gap:6px;padding:4px 6px;border-radius:6px;font-size:12px;min-width:0}',
     '.dvb-row:hover{background:var(--dsw-alias-interactive-bg-hover)}',
@@ -550,6 +557,34 @@
       // Tab body
       // -------------------------------------------------------------------
 
+      /**
+       * Height of the resizable action log. The panel keeps the choice in
+       * localStorage so a chosen split survives reopening the tab.
+       */
+      var LOG_HEIGHT_KEY = 'dsh.visual-browser.log-height.v1';
+      var LOG_MIN_HEIGHT = 96;
+      var LOG_STAGE_RESERVE = 220;
+
+      function readStoredLogHeight() {
+        try {
+          var raw = window.localStorage.getItem(LOG_HEIGHT_KEY);
+          var value = Number(raw);
+          if (!Number.isFinite(value) || value < LOG_MIN_HEIGHT) return null;
+          return Math.round(value);
+        } catch {
+          return null;
+        }
+      }
+
+      function storeLogHeight(value) {
+        try {
+          if (value === null) window.localStorage.removeItem(LOG_HEIGHT_KEY);
+          else window.localStorage.setItem(LOG_HEIGHT_KEY, String(Math.round(value)));
+        } catch {
+          /* storage can be unavailable; the choice just does not persist */
+        }
+      }
+
       var EMPTY_STATE = {
         running: false,
         starting: false,
@@ -591,11 +626,17 @@
         var [draft, setDraft] = useState('');
         var [dirty, setDirty] = useState(false);
         var [logOpen, setLogOpen] = useState(true);
+        var [logHeight, setLogHeight] = useState(readStoredLogHeight);
+        var [resizing, setResizing] = useState(false);
         var [live, setLive] = useState(false);
         var [streamRetry, setStreamRetry] = useState(0);
         var [retrying, setRetrying] = useState(false);
         var [focused, setFocused] = useState(false);
 
+        var rootRef = useRef(null);
+        var logRef = useRef(null);
+        var logBodyRef = useRef(null);
+        var splitRef = useRef(null);
         var stageRef = useRef(null);
         var canvasRef = useRef(null);
         var liveRef = useRef(false);
@@ -1081,6 +1122,133 @@
           });
         };
 
+        // Keeps a stored split inside the panel: the picture always keeps its
+        // reserve, however the pane is resized later.
+        useEffect(
+          function () {
+            if (logHeight === null) return undefined;
+            var root = rootRef.current;
+            if (!root) return undefined;
+            var clampToPanel = function () {
+              var limit = Math.max(LOG_MIN_HEIGHT, root.clientHeight - LOG_STAGE_RESERVE);
+              if (logHeight > limit) {
+                setLogHeight(limit);
+                storeLogHeight(limit);
+              }
+            };
+            clampToPanel();
+            if (typeof ResizeObserver !== 'function') return undefined;
+            var observer = new ResizeObserver(clampToPanel);
+            observer.observe(root);
+            return function () {
+              observer.disconnect();
+            };
+          },
+          [logHeight, logOpen],
+        );
+
+        var applyLogHeight = function (value) {
+          var log = logRef.current;
+          if (!log) return;
+          if (value === null) {
+            log.removeAttribute('data-sized');
+            log.style.removeProperty('--dvb-log-h');
+          } else {
+            log.setAttribute('data-sized', 'true');
+            log.style.setProperty('--dvb-log-h', Math.round(value) + 'px');
+          }
+        };
+
+        var commitLogHeight = function (value) {
+          setLogHeight(value);
+          storeLogHeight(value);
+          applyLogHeight(value);
+        };
+
+        // The CSS `height` is a content-box height; measuring the same box keeps
+        // a drag from jumping by the body's padding on the first pixel.
+        var currentLogHeight = function () {
+          var body = logBodyRef.current;
+          if (!body) return LOG_MIN_HEIGHT;
+          var computed = window.getComputedStyle(body).height;
+          var value = Number(String(computed).replace('px', ''));
+          return Number.isFinite(value) && value > 0 ? value : body.getBoundingClientRect().height;
+        };
+
+        var logHeightLimit = function () {
+          var root = rootRef.current;
+          if (!root) return 420;
+          return Math.max(LOG_MIN_HEIGHT, root.clientHeight - LOG_STAGE_RESERVE);
+        };
+
+        // Drag the divider between the picture and the log.
+        var onSplitDown = function (event) {
+          if (event.button !== undefined && event.button !== 0) return;
+          event.preventDefault();
+          event.stopPropagation();
+          var startHeight = currentLogHeight();
+          var startY = event.clientY;
+          var pointerId = event.pointerId;
+          var handle = event.currentTarget;
+          var active = true;
+          setResizing(true);
+          try {
+            if (handle.setPointerCapture) handle.setPointerCapture(pointerId);
+          } catch {
+            /* capture is a nicety */
+          }
+
+          var move = function (moveEvent) {
+            if (!active) return;
+            var limit = logHeightLimit();
+            var next = Math.min(limit, Math.max(LOG_MIN_HEIGHT, Math.round(startHeight + (startY - moveEvent.clientY))));
+            applyLogHeight(next);
+          };
+          var finish = function () {
+            if (!active) return;
+            active = false;
+            handle.removeEventListener('pointermove', move);
+            handle.removeEventListener('pointerup', finish);
+            handle.removeEventListener('pointercancel', finish);
+            try {
+              if (handle.releasePointerCapture) handle.releasePointerCapture(pointerId);
+            } catch {
+              /* already released */
+            }
+            setResizing(false);
+            var log = logRef.current;
+            var value = log ? Number(String(log.style.getPropertyValue('--dvb-log-h')).replace('px', '')) : NaN;
+            if (Number.isFinite(value) && value > 0) commitLogHeight(Math.round(value));
+            else commitLogHeight(null);
+          };
+
+          handle.addEventListener('pointermove', move);
+          handle.addEventListener('pointerup', finish);
+          handle.addEventListener('pointercancel', finish);
+        };
+
+        var onSplitKeyDown = function (event) {
+          var step = event.shiftKey ? 64 : 24;
+          var current = currentLogHeight();
+          if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            commitLogHeight(Math.min(logHeightLimit(), Math.round(current + step)));
+          } else if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            commitLogHeight(Math.max(LOG_MIN_HEIGHT, Math.round(current - step)));
+          } else if (event.key === 'Home') {
+            event.preventDefault();
+            commitLogHeight(LOG_MIN_HEIGHT);
+          } else if (event.key === 'End') {
+            event.preventDefault();
+            commitLogHeight(logHeightLimit());
+          }
+        };
+
+        var resetLogHeight = function () {
+          commitLogHeight(null);
+        };
+
         var kindLabel = function (kind) {
           var key = 'kind.' + kind;
           var text = t(key);
@@ -1099,7 +1267,7 @@
 
         return h(
           'div',
-          { className: 'dvb-root' },
+          { className: 'dvb-root', ref: rootRef },
           h(
             'div',
             { className: 'dvb-bar' },
@@ -1294,9 +1462,33 @@
                 state.headless ? h('span', null, t('hint.headless')) : null,
               )
             : null,
+          logOpen
+            ? h('button', {
+                type: 'button',
+                ref: splitRef,
+                className: 'dvb-split',
+                role: 'separator',
+                'aria-orientation': 'horizontal',
+                'aria-label': t('timeline.resize'),
+                'aria-valuemin': LOG_MIN_HEIGHT,
+                'aria-valuemax': logHeightLimit(),
+                'aria-valuenow': logHeight !== null ? logHeight : undefined,
+                title: t('timeline.resize'),
+                'data-active': String(resizing),
+                onPointerDown: onSplitDown,
+                onKeyDown: onSplitKeyDown,
+                onDoubleClick: resetLogHeight,
+              })
+            : null,
           h(
             'div',
-            { className: 'dvb-log', 'data-open': String(logOpen) },
+            {
+              className: 'dvb-log',
+              ref: logRef,
+              'data-open': String(logOpen),
+              'data-sized': String(logHeight !== null),
+              style: logHeight !== null ? { '--dvb-log-h': logHeight + 'px' } : undefined,
+            },
             h(
               'button',
               {
@@ -1317,22 +1509,22 @@
               reachable ? null : h('span', { className: 'dvb-status' }, t('state.offline')),
             ),
             logOpen
-              ? actions.length === 0
-                ? h('div', { className: 'dvb-log-empty' }, t('timeline.empty'))
-                : h(
-                    'div',
-                    { className: 'dvb-log-body' },
-                    actions.map(function (action) {
-                      var label = action.detail || action.target || kindLabel(action.kind);
-                      return h(
-                        'div',
-                        { key: action.seq, className: 'dvb-row', title: label },
-                        h('span', { className: 'dvb-row-time' }, clock(action.ts)),
-                        h('span', { className: 'dvb-row-kind', 'data-kind': action.kind }, kindLabel(action.kind)),
-                        h('span', { className: 'dvb-row-text', 'data-error': String(action.ok === false) }, label),
-                      );
-                    }),
-                  )
+              ? h(
+                  'div',
+                  { className: 'dvb-log-body', ref: logBodyRef },
+                  actions.length === 0
+                    ? h('div', { className: 'dvb-log-empty' }, t('timeline.empty'))
+                    : actions.map(function (action) {
+                        var label = action.detail || action.target || kindLabel(action.kind);
+                        return h(
+                          'div',
+                          { key: action.seq, className: 'dvb-row', title: label },
+                          h('span', { className: 'dvb-row-time' }, clock(action.ts)),
+                          h('span', { className: 'dvb-row-kind', 'data-kind': action.kind }, kindLabel(action.kind)),
+                          h('span', { className: 'dvb-row-text', 'data-error': String(action.ok === false) }, label),
+                        );
+                      }),
+                )
               : null,
           ),
         );

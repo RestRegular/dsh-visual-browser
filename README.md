@@ -12,7 +12,8 @@ A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a
   animation-frame batches: click, drag, scroll and type with normal latency
   instead of "screenshot after the fact" latency.
 - Every action — the Agent's and yours — lands in a collapsible, scrollable
-  **operation log**. Records only: there is nothing to replay.
+  **operation log** whose height you can drag. Records only: there is nothing to
+  replay.
 - Cookies persist across restarts (one dedicated Chrome profile), so a login the
   Agent performs once keeps working.
 
@@ -40,6 +41,10 @@ dependencies; it talks CDP over the built-in WebSocket).
 
 The operation log at the bottom remembers the Agent's actions and yours. Click
 its header to fold it away, or scroll it when the list is longer than the pane.
+Drag the handle above the log to choose how much room it takes (the picture keeps
+a minimum reserve); double-click the handle to go back to the default, or focus
+it and use ↑ / ↓ (Shift for bigger steps, Home / End for the extremes). The
+chosen height is remembered per browser.
 
 ### Dark mode
 
