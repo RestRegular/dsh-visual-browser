@@ -21,7 +21,8 @@
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "test/"
   ],
   "dsh": {
     "bundle": {
@@ -66,6 +67,6 @@
   "license": "MIT",
   "author": "RestRegular",
   "scripts": {
-    "test": "node --check index.js && node --check client.js && node --check lib/browser.js && node test/snapshot.test.mjs && node test/scripts.test.mjs && node test/package.test.mjs"
+    "test": "node --check index.js && node --check client.js && node --check lib/browser.js && node test/format.test.mjs && node test/scripts.test.mjs && node test/routes.test.mjs && node test/package.test.mjs"
   }
 }

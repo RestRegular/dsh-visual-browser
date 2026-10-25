@@ -80,6 +80,7 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
     frameQuality: 62          # JPEG quality of panel frames
     timelineFrames: 24        # replayable frames kept in memory
     allowUserControl: true    # allow clicks from the panel
+    reuseExisting: true       # adopt a Chrome that already owns the profile
     actionTimeoutMs: 12000
     navigationTimeoutMs: 30000
 ```
@@ -102,6 +103,10 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
   N frames; clicking a row replays that moment.
 - **One code path**: panel clicks, wheel events and keys run the same
   `BrowserManager` methods the tools use.
+- **Survives a host restart**: Chrome writes `DevToolsActivePort` into its
+  profile, so a restarted host (or one whose previous host crashed with Chrome
+  still alive) attaches to that browser instead of failing on the profile lock.
+  An adopted browser is only detached — its process is not killed.
 
 Chrome is killed with its process tree when the plugin unloads.
 
