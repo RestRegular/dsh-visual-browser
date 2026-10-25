@@ -1,20 +1,24 @@
 # dsh-visual-browser
 
-A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a **window into it**.
+A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a **live window into it** — as a tab in the **right Sidebar**, right under the built-in *Browser* entry.
 
 - The Agent never reads the DOM. It reads a numbered list of *visible interactive
   elements* plus a short text excerpt — a few hundred tokens per page instead of a
-  full snapshot.
-- Every action the Agent takes (click, type, key, scroll, navigation) is mirrored
-  into a **面板 (panel)** with the page frame, an operation timeline you can replay,
-  and a picture you can click to take over the browser yourself.
+  full DOM snapshot.
+- The tab streams Chrome's own screencast (CDP `Page.startScreencast`) as a
+  length-prefixed JPEG stream, decoded off the main thread onto a canvas. No
+  screenshot polling, no per-frame request, no re-render of the panel per frame.
+- Your pointer, wheel and keyboard go straight to the DevTools input domain in
+  animation-frame batches: click, drag, scroll and type with normal latency
+  instead of "screenshot after the fact" latency.
+- Every action — the Agent's and yours — lands in a collapsible, scrollable
+  **operation log**. Records only: there is nothing to replay.
 - Cookies persist across restarts (one dedicated Chrome profile), so a login the
   Agent performs once keeps working.
 
 ## Install
 
 ```bash
-# The plugin is a normal DSH bundle; install it from the registry
 dsh plugin add @restregular/dsh-visual-browser
 ```
 
@@ -26,11 +30,23 @@ dependencies; it talks CDP over the built-in WebSocket).
 
 ## Use
 
-1. Click the **浏览器 / Browser** icon in the sidebar to open the panel.
+1. Open the right Sidebar. Under the built-in **浏览器 / Browser** card sits the
+   Visual Browser row — click it, or click the **浏览器** card itself and then the
+   extra row beneath it. The tab opens and replaces the guide in that pane.
 2. Ask the Agent something that needs a website, for example
    *"打开 example.com 看看首页写了什么"*. The Agent calls `browser_open`.
-3. Watch the frame update. Click the picture to click the page; wheel over it to
-   scroll; use the toolbar for back / forward / reload / live view / stop.
+3. Watch the picture. Click, drag, wheel and type straight into it; the toolbar
+   has back / forward / reload / stop, and the address bar opens any URL.
+
+The operation log at the bottom remembers the Agent's actions and yours. Click
+its header to fold it away, or scroll it when the list is longer than the pane.
+
+### Dark mode
+
+The panel only uses `--dsw-alias-*` theme tokens for surfaces, text, borders,
+hover and focus, so light and dark (and theme switches) need no extra rules. The
+only literal colour in the bundle is the `#fff` fallback after
+`--dsw-alias-label-primary-foreground`.
 
 ## Tools the Agent gets
 
@@ -77,9 +93,8 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
       height: 800
     maxElements: 100          # cap on the numbered list
     maxTextChars: 320         # cap on the text excerpt
-    frameQuality: 62          # JPEG quality of panel frames
-    timelineFrames: 24        # replayable frames kept in memory
-    allowUserControl: true    # allow clicks from the panel
+    streamQuality: 60         # JPEG quality of the live screencast
+    allowUserControl: true    # allow clicks/typing from the panel
     reuseExisting: true       # adopt a Chrome that already owns the profile
     actionTimeoutMs: 12000
     navigationTimeoutMs: 30000
@@ -91,18 +106,26 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
   `--remote-debugging-port=0 --user-data-dir=<profile>`, parses the DevTools
   endpoint from stderr, attaches one flattened CDP session, and exposes:
   - five tools through the `tools` service (registration is effect-scoped),
-  - a same-origin prefix route `/visual-browser/api` (`/state`, `/frame`,
-    `/live`, `/start`, `/stop`, `/capture`, `/click`, `/wheel`, `/key`, `/nav`)
-    that the panel polls and posts to.
+  - a same-origin prefix route `/visual-browser/api`:
+    | Route | Purpose |
+    | --- | --- |
+    | `GET /state` | Status, viewport and the operation log (tiny JSON poll). |
+    | `GET /stream` | One long response of `[len][seq][jpeg]` frames. |
+    | `POST /input` | A batch of pointer / wheel / key / text events. |
+    | `POST /start`, `POST /stop`, `POST /nav` | Open a URL, close Chrome, back/forward/reload. |
+- **Live picture** (`lib/browser.js`): `Page.startScreencast` pushes a JPEG per
+  painted frame; the manager acks each frame and fans the same buffer out to every
+  panel. The first subscriber restarts the screencast so a still page appears at
+  once; the last one stops it, so a closed panel costs nothing. No screenshot is
+  taken per click, and nothing about the picture touches the model context.
+- **Input** (`lib/browser.js`): panel events become `Input.dispatchMouseEvent` /
+  `Input.dispatchKeyEvent` / `Input.insertText` commands. Nothing waits for a
+  snapshot or a capture, so input latency is one round trip; the client batches
+  per animation frame so a drag or flick is one request, not thirty.
 - **Snapshot** (`lib/page-scripts.js`): one serialized function runs in the page,
   filters interactive elements to the viewport, assigns `data-dsh-vb-ref`
   numbers, and returns structured JSON. Nothing else about the DOM leaves the
   page.
-- **Frames** stay on the host: the panel displays the newest JPEG by sequence
-  number, so a live picture costs no session tokens. The timeline holds the last
-  N frames; clicking a row replays that moment.
-- **One code path**: panel clicks, wheel events and keys run the same
-  `BrowserManager` methods the tools use.
 - **Survives a host restart**: Chrome writes `DevToolsActivePort` into its
   profile, so a restarted host (or one whose previous host crashed with Chrome
   still alive) attaches to that browser instead of failing on the profile lock.
@@ -114,9 +137,11 @@ Chrome is killed with its process tree when the plugin unloads.
 
 - Cross-origin iframes are counted but not inspected; open the direct URL when a
   flow lives inside a frame.
-- Blocking JS dialogs are auto-accepted and logged in the timeline.
+- Blocking JS dialogs are auto-accepted and logged in the operation log.
 - The panel route is served by the Harness web server on its existing origin;
   it performs no extra authentication, matching the other local panel routes.
+- The stream is a raw binary response on purpose: `multipart/x-mixed-replace`
+  parsing differs between browser builds, so the panel parses frames itself.
 - Headless mode is the default. Some sites behave differently headless; set
   `headless: false` when a site insists on a window.
 
@@ -125,5 +150,11 @@ Chrome is killed with its process tree when the plugin unloads.
 ```bash
 npm test    # syntax checks + snapshot/format/route/package smoke tests
 ```
+
+`.dsh-probe/` (git-ignored) holds the manual probes used while developing:
+`live-probe.mjs` drives the real browser end to end, `ui-probe.mjs` renders the
+real client bundle in Chrome against the real host API and drives the panel with
+real DOM events, and `build-css.mjs` copies the panel CSS and theme tokens for
+that harness.
 
 MIT © RestRegular

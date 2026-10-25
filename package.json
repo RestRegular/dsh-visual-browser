@@ -1,7 +1,7 @@
 {
   "name": "@restregular/dsh-visual-browser",
-  "version": "0.1.1",
-  "description": "Visual browser for DeepSeek Harness: the Agent drives a real Chrome through a token-light numbered view of interactive elements (never the raw DOM), while the Web UI streams the live page frame, the click point of every action, and a replayable operation timeline the user can also take over by clicking the picture.",
+  "version": "0.2.0",
+  "description": "Visual browser for DeepSeek Harness: a right-sidebar tab under the built-in Browser that streams Chrome live as a binary JPEG frame stream (no screenshot polling, no per-frame request) while the Agent drives it through a token-light numbered view of interactive elements, never the raw DOM. Clicks, drags, wheel and typing are forwarded straight to the DevTools input domain, and every action stays in a collapsible, scrollable operation log.",
   "icon": "./icon.svg",
   "type": "module",
   "main": "index.js",
@@ -33,8 +33,7 @@
       "immediately": true,
       "inject": [
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-ui-layout",
-        "@deepseek-ai/dsh-client-ui-sidebar"
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
       ]
     }
   },

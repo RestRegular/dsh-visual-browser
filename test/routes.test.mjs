@@ -5,17 +5,39 @@ import { handle } from '../lib/routes.js';
 const PREFIX = '/visual-browser/api';
 
 function makeRes() {
+  const handlers = new Map();
   return {
     statusCode: 200,
     headers: {},
     chunks: [],
     ended: false,
+    flushed: false,
     setHeader(name, value) {
       this.headers[String(name).toLowerCase()] = value;
+    },
+    flushHeaders() {
+      this.flushed = true;
+    },
+    write(chunk) {
+      this.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+      return true;
     },
     end(data) {
       if (data !== undefined) this.chunks.push(Buffer.isBuffer(data) ? data : Buffer.from(String(data)));
       this.ended = true;
+      this.emit('close');
+    },
+    on(event, callback) {
+      const bucket = handlers.get(event) ?? [];
+      bucket.push(callback);
+      handlers.set(event, bucket);
+      return this;
+    },
+    once(event, callback) {
+      return this.on(event, callback);
+    },
+    emit(event) {
+      for (const callback of handlers.get(event) ?? []) callback();
     },
     get body() {
       return Buffer.concat(this.chunks).toString('utf8');
@@ -37,17 +59,28 @@ function makeReq(method, url, body) {
   };
 }
 
-function makeManager() {
+function makeManager({ running = true } = {}) {
   const manager = {
     calls: {},
+    running,
     state() {
-      return { running: true, url: 'https://demo.test/', frameSeq: 3, actions: [] };
+      return { running, url: 'https://demo.test/', startedAt: 12, actionSeq: 3, actions: [] };
     },
-    frameFor(seq) {
-      return Number(seq) === 3 ? { seq: 3, jpeg: Buffer.from('jpeg-bytes') } : null;
+    framesListener: null,
+    subscribeFrames(listener) {
+      this.framesListener = listener;
+      this.calls.subscribed = (this.calls.subscribed ?? 0) + 1;
+      return () => {
+        this.framesListener = null;
+        this.calls.unsubscribed = true;
+      };
     },
-    async refreshFrame() {
-      return this.state();
+    refreshLiveView() {
+      this.calls.refreshed = true;
+    },
+    async dispatchInput(events) {
+      this.calls.input = events;
+      return { applied: events.length };
     },
     async open(url) {
       this.calls.open = url;
@@ -57,15 +90,6 @@ function makeManager() {
     },
     async close() {
       this.calls.closed = true;
-    },
-    async clickAt(point) {
-      this.calls.click = point;
-    },
-    async wheelAt(point) {
-      this.calls.wheel = point;
-    },
-    async keyFromUser(key) {
-      this.calls.key = key;
     },
     async act(input) {
       this.calls.act = input;
@@ -90,28 +114,44 @@ async function request(manager, method, path, body) {
   assert.equal(res.statusCode, 200);
   assert.equal(res.headers['content-type'], 'application/json; charset=utf-8');
   assert.equal(res.json.ok, true);
-  assert.equal(res.json.state.frameSeq, 3);
+  assert.equal(res.json.state.startedAt, 12);
 }
 
-// frame hit and miss
+// live picture stream: binary framing, then frames pushed through subscribeFrames
 {
   const manager = makeManager();
-  const hit = await request(manager, 'GET', '/frame?seq=3');
-  assert.equal(hit.statusCode, 200);
-  assert.equal(hit.headers['content-type'], 'image/jpeg');
-  assert.equal(hit.body, 'jpeg-bytes');
-
-  const miss = await request(manager, 'GET', '/frame?seq=2');
-  assert.equal(miss.statusCode, 204);
-  assert.equal(miss.chunks.length, 0);
-}
-
-// live capture
-{
-  const manager = makeManager();
-  const res = await request(manager, 'GET', '/live');
+  const res = makeRes();
+  await handle(manager, PREFIX, makeReq('GET', PREFIX + '/stream'), res);
   assert.equal(res.statusCode, 200);
-  assert.equal(res.body, 'jpeg-bytes');
+  assert.equal(res.headers['content-type'], 'application/x-dsh-visual-browser-frames');
+  assert.match(res.headers['cache-control'], /no-transform/, 'the host gzip middleware must stay out of a live picture');
+  assert.equal(res.flushed, true);
+  assert.equal(manager.calls.subscribed, 1);
+  assert.equal(typeof manager.framesListener, 'function');
+
+  manager.framesListener(Buffer.from('jpeg-bytes'));
+  const body = Buffer.concat(res.chunks);
+  assert.equal(body.length, 8 + 10);
+  assert.equal(body.readUInt32LE(0), 10, 'frame length prefix');
+  assert.equal(body.readUInt32LE(4), 1, 'frame sequence');
+  assert.equal(body.subarray(8).toString('utf8'), 'jpeg-bytes');
+
+  res.emit('close');
+  assert.equal(manager.calls.unsubscribed, true, 'the stream releases its subscription when the panel goes away');
+}
+
+// no multipart: the panel parses frames itself
+{
+  const routes = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../lib/routes.js', import.meta.url), 'utf8'));
+  assert.ok(!routes.includes('multipart/x-mixed-replace'), 'binary framing replaced MJPEG');
+}
+
+// stream without a running browser is an empty answer, not a hang
+{
+  const manager = makeManager({ running: false });
+  const res = await request(manager, 'GET', '/stream');
+  assert.equal(res.statusCode, 204);
+  assert.equal(manager.calls.subscribed, undefined);
 }
 
 // start with and without a URL
@@ -120,26 +160,27 @@ async function request(manager, method, path, body) {
   const started = await request(manager, 'POST', '/start', { url: 'example.com' });
   assert.equal(started.statusCode, 200);
   assert.equal(manager.calls.open, 'example.com');
+  assert.equal(manager.calls.refreshed, true);
 
   const plain = await request(manager, 'POST', '/start', {});
   assert.equal(plain.statusCode, 200);
   assert.equal(manager.calls.started, true);
 }
 
-// user interactions
+// one input batch, one round trip
 {
   const manager = makeManager();
-  const click = await request(manager, 'POST', '/click', { x: 0.5, y: 0.25 });
-  assert.equal(click.statusCode, 200);
-  assert.deepEqual(manager.calls.click, { x: 0.5, y: 0.25 });
-
-  const wheel = await request(manager, 'POST', '/wheel', { deltaY: 240 });
-  assert.equal(wheel.statusCode, 200);
-  assert.deepEqual(manager.calls.wheel, { deltaY: 240, deltaX: undefined });
-
-  const key = await request(manager, 'POST', '/key', { key: 'Enter' });
-  assert.equal(key.statusCode, 200);
-  assert.equal(manager.calls.key, 'Enter');
+  const events = [
+    { t: 'pointer', type: 'down', x: 0.5, y: 0.25, button: 0, buttons: 1 },
+    { t: 'pointer', type: 'up', x: 0.5, y: 0.25, button: 0, buttons: 0 },
+    { t: 'wheel', x: 0.5, y: 0.5, dx: 0, dy: 240 },
+    { t: 'key', type: 'down', key: 'Enter', code: 'Enter', keyCode: 13 },
+  ];
+  const res = await request(manager, 'POST', '/input', { events });
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json.ok, true);
+  assert.equal(res.json.applied, 4);
+  assert.deepEqual(manager.calls.input, events);
 
   const nav = await request(manager, 'POST', '/nav', { action: 'back' });
   assert.equal(nav.statusCode, 200);
@@ -164,7 +205,7 @@ async function request(manager, method, path, body) {
   const res = makeRes();
   const badReq = {
     method: 'POST',
-    url: PREFIX + '/click',
+    url: PREFIX + '/input',
     async *[Symbol.asyncIterator]() {
       yield Buffer.from('{not json');
     },
@@ -176,9 +217,9 @@ async function request(manager, method, path, body) {
   const toobig = makeRes();
   const huge = {
     method: 'POST',
-    url: PREFIX + '/click',
+    url: PREFIX + '/input',
     async *[Symbol.asyncIterator]() {
-      yield Buffer.alloc(70 * 1024, 0x20);
+      yield Buffer.alloc(200 * 1024, 0x20);
     },
   };
   await handle(manager, PREFIX, huge, toobig);
