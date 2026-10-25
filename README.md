@@ -66,7 +66,7 @@ only literal colour in the bundle is the `#fff` fallback after
 | --- | --- |
 | `browser_open` | Open a URL (launches Chrome on first use) and return the numbered view. |
 | `browser_see` | Fresh numbered view of the current page. |
-| `browser_act` | `click` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view. |
+| `browser_act` | `click` / `drag` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view. |
 | `browser_text` | Read text of the page or of one element (a link also returns its `href`). |
 | `browser_screenshot` | Save a PNG/JPEG to disk and return the path (feed it to `read_image`). |
 
@@ -88,6 +88,27 @@ ACTIVE: [1] textbox "手机号"
 Numbers are reassigned on every view, so an action always uses the newest
 numbers; a stale one fails with a clear "take a fresh snapshot" message instead
 of clicking the wrong element.
+
+### Acting by coordinates
+
+Anything visible in the picture can also be driven by position alone — `x` / `y`
+in CSS pixels, the same scale as `browser_screenshot` — for the cases where the
+element view has nothing to offer: canvas apps, maps, and every widget inside a
+cross-origin iframe, where `querySelector` is blocked by the same-origin policy
+while the DevTools input domain still hits whatever is under the pointer.
+
+`drag` is a real gesture, not two clicks: press, N interpolated moves, release.
+Every held move reports `button: 'left'` with `buttons: 1`, because that bitmask
+is what tells Chrome's input pipeline the difference between hovering and
+dragging; without it a slider still receives `mousedown`/`mousemove` and simply
+refuses to move. `steps` (default 16) and `duration_ms` (default 420) shape the
+path, `to_x` / `to_y` are the drop point, and a `ref` may stand in for the
+starting `x` / `y`:
+
+```
+browser_act({ action: 'drag', x: 486, y: 421, to_x: 704, to_y: 421 })
+browser_act({ action: 'click', x: 640, y: 400 })
+```
 
 ## Configuration
 
