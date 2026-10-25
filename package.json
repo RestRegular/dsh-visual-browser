@@ -1,6 +1,6 @@
 {
   "name": "@restregular/dsh-visual-browser",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Visual browser for DeepSeek Harness: a right-sidebar tab under the built-in Browser that streams Chrome live as a binary JPEG frame stream (no screenshot polling) while the Agent drives it through a token-light numbered view of interactive elements, never the raw DOM. The panel keeps real pages as tabs, forwards clicks, drags, wheel and typing straight to the DevTools input domain, draws its own cursor, and keeps every action in a collapsible operation log whose height you drag.",
   "icon": "./icon.svg",
   "type": "module",

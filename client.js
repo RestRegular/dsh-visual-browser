@@ -19,6 +19,11 @@
   var BROWSER_TYPE_ID = '@deepseek-ai/dsh-client-ui-sidebar-browser';
   var BROWSER_KIND = 'browser';
 
+  // Chromium refuses `keepalive` on a non-http(s) scheme: inside Electron the
+  // panel runs on dsh-app://, where such a request fails before it reaches the
+  // network. Plain POSTs work there, so the flag is only used where it is safe.
+  var KEEPALIVE_OK = typeof location !== 'undefined' && /^https?:$/i.test(String(location.protocol));
+
   var DICT = {
     zh: {
       'panel.title': '可视化浏览器',
@@ -54,6 +59,7 @@
       'timeline.collapse': '折叠操作记录',
       'error.offline': '连不上宿主路由（/visual-browser/api），请确认插件已启用且宿主仍在运行。',
       'error.frame': '画面流中断，正在重连…',
+      'error.input': '输入没能送到浏览器：',
       'kind.start': '启动',
       'kind.close': '关闭',
       'kind.open': '打开',
@@ -111,6 +117,7 @@
       'timeline.collapse': 'Collapse the action log',
       'error.offline': 'Cannot reach the host route (/visual-browser/api). Check that the plugin is enabled and the host is running.',
       'error.frame': 'The picture stream dropped; reconnecting…',
+      'error.input': 'Input never reached the browser:',
       'kind.start': 'start',
       'kind.close': 'close',
       'kind.open': 'open',
@@ -173,6 +180,7 @@
     '.dvb-veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 78%,transparent);pointer-events:none}',
     '.dvb-retry{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;border-radius:13px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;white-space:nowrap;cursor:pointer;pointer-events:auto}',
     '.dvb-retry:hover{background:var(--dsw-alias-interactive-bg-hover)}',
+    '.dvb-inputerr{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);max-width:calc(100% - 24px);padding:4px 10px;border-radius:11px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;line-height:1.35;text-align:center;pointer-events:none}',
     '.dvb-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px 24px;color:var(--dsw-alias-label-secondary)}',
     '.dvb-empty-title{font-size:13.5px;font-weight:600;color:var(--dsw-alias-label-primary)}',
     '.dvb-empty-desc{max-width:340px;font-size:12px}',
@@ -348,7 +356,9 @@
        * animation frame as a single ordered POST. Moves and wheel deltas are
        * folded together, so a fast flick is one request instead of thirty.
        */
-      function createSender() {
+      function createSender(options) {
+        var onFailure = options && typeof options.onFailure === 'function' ? options.onFailure : null;
+        var onSuccess = options && typeof options.onSuccess === 'function' ? options.onSuccess : null;
         var queue = [];
         var inFlight = false;
         var frame = 0;
@@ -398,10 +408,17 @@
           inFlight = true;
           inFlightSince = Date.now();
           var controller = typeof AbortController === 'function' ? new AbortController() : null;
-          var done = function () {
+          var settled = false;
+          var done = function (failure) {
+            if (settled) return;
+            settled = true;
             if (requestId !== activeRequest) return;
             window.clearTimeout(watchdog);
             inFlight = false;
+            // A silently dropped batch is the worst outcome: the pointer shows a
+            // press, the record shows nothing, and the panel looks dead. Say so.
+            if (failure && onFailure !== null) onFailure(failure);
+            if (!failure && onSuccess !== null) onSuccess();
             if (disposed) return;
             if (queue.length > 0 && frame === 0) frame = window.requestAnimationFrame(flush);
           };
@@ -412,19 +429,58 @@
             } catch {
               /* already settled */
             }
-            done();
+            done('timed out');
           }, inFlightTimeout);
-          fetch(API + '/input', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ events: batch }),
-            keepalive: true,
-            ...(controller !== null ? { signal: controller.signal } : {}),
-          })
-            .catch(function () {
-              /* a dropped input batch is not worth a visible error */
-            })
-            .then(done, done);
+          var payload = JSON.stringify({ events: batch });
+          var post = function (keepalive) {
+            return fetch(API + '/input', {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: payload,
+              ...(keepalive ? { keepalive: true } : {}),
+              ...(controller !== null ? { signal: controller.signal } : {}),
+            });
+          };
+          // keepalive only buys "still delivered while the page unloads"; a
+          // scheme that rejects it would cost every click instead, so the plain
+          // POST is the fallback rather than the other way round.
+          var request = KEEPALIVE_OK
+            ? post(true).catch(function () {
+                return post(false);
+              })
+            : post(false);
+          request
+            .then(
+              function (response) {
+                if (response.ok) return undefined;
+                return response.text().then(
+                  function (text) {
+                    var detail = '';
+                    try {
+                      var parsed = JSON.parse(text);
+                      detail = parsed && parsed.error && parsed.error.message ? parsed.error.message : '';
+                    } catch {
+                      /* not JSON: the status alone has to do */
+                    }
+                    throw new Error(detail || 'HTTP ' + response.status);
+                  },
+                  function () {
+                    throw new Error('HTTP ' + response.status);
+                  },
+                );
+              },
+              function (error) {
+                throw error instanceof Error ? error : new Error(String(error));
+              },
+            )
+            .then(
+              function () {
+                done(null);
+              },
+              function (error) {
+                done(error && error.message ? error.message : String(error));
+              },
+            );
         };
 
         return {
@@ -726,9 +782,41 @@
         var pointerRef = useRef({ down: false, id: 0, x: 0, y: 0, moved: 0, clicks: 1, lastUpAt: 0, lastUpX: 0, lastUpY: 0, button: 0 });
         var pointerUpRef = useRef(null);
         var stateJsonRef = useRef('');
+        // Input trouble is shown as an absolutely positioned pill inside the
+        // picture, never as a new row: a row would reflow the layout under the
+        // pointer, and a click that was already aimed would land somewhere else.
+        var [inputError, setInputError] = useState('');
+        var inputErrorTimerRef = useRef(0);
+        var tRef = useRef(t);
+        tRef.current = t;
         var sender = useMemo(function () {
-          return createSender();
+          return createSender({
+            onFailure: function (message) {
+              setInputError(tRef.current('error.input') + ' ' + message);
+              if (inputErrorTimerRef.current !== 0) window.clearTimeout(inputErrorTimerRef.current);
+              inputErrorTimerRef.current = window.setTimeout(function () {
+                inputErrorTimerRef.current = 0;
+                setInputError('');
+              }, 8000);
+            },
+            onSuccess: function () {
+              if (inputErrorTimerRef.current !== 0) {
+                window.clearTimeout(inputErrorTimerRef.current);
+                inputErrorTimerRef.current = 0;
+                setInputError('');
+              }
+            },
+          });
         }, []);
+
+        useEffect(
+          function () {
+            return function () {
+              if (inputErrorTimerRef.current !== 0) window.clearTimeout(inputErrorTimerRef.current);
+            };
+          },
+          [],
+        );
 
         useEffect(function () {
           return function () {
@@ -1681,6 +1769,15 @@
                   h('div', { className: 'dvb-empty-desc' }, t('empty.desc')),
                 ),
             state.running && !live ? h('div', { className: 'dvb-veil' }, t(retrying ? 'error.frame' : 'connecting')) : null,
+            // Out of the flow on purpose: it must never reflow the picture under
+            // a pointer that is already aiming at something.
+            inputError !== ''
+              ? h(
+                  'div',
+                  { key: 'input-error', className: 'dvb-inputerr', role: 'status', 'aria-live': 'polite' },
+                  inputError,
+                )
+              : null,
             // The picture recovering must never block the page: the veil is
             // click-through and only this pill takes the pointer.
             state.running && retrying
