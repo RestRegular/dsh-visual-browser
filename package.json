@@ -1,6 +1,6 @@
 {
   "name": "@restregular/dsh-visual-browser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visual browser for DeepSeek Harness: the Agent drives a real Chrome through a token-light numbered view of interactive elements (never the raw DOM), while the Web UI streams the live page frame, the click point of every action, and a replayable operation timeline the user can also take over by clicking the picture.",
   "icon": "./icon.svg",
   "type": "module",
