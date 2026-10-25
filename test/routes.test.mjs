@@ -75,6 +75,23 @@ function makeManager({ running = true } = {}) {
         this.calls.unsubscribed = true;
       };
     },
+    activityListener: null,
+    subscribeActivity(listener) {
+      this.activityListener = listener;
+      this.calls.activitySubscribed = (this.calls.activitySubscribed ?? 0) + 1;
+      return () => {
+        this.activityListener = null;
+        this.calls.activityUnsubscribed = true;
+      };
+    },
+    ackActivity(id) {
+      this.calls.acked = id;
+      return true;
+    },
+    clearActions() {
+      this.calls.cleared = true;
+      return this.state();
+    },
     refreshLiveView() {
       this.calls.refreshed = true;
     },
@@ -152,6 +169,49 @@ async function request(manager, method, path, body) {
   const res = await request(manager, 'GET', '/stream');
   assert.equal(res.statusCode, 204);
   assert.equal(manager.calls.subscribed, undefined);
+
+  const events = await request(manager, 'GET', '/events');
+  assert.equal(events.statusCode, 204);
+  assert.equal(manager.calls.activitySubscribed, undefined);
+}
+
+// agent activity cues are pushed immediately, not left on the state poll
+{
+  const manager = makeManager();
+  const res = makeRes();
+  await handle(manager, PREFIX, makeReq('GET', PREFIX + '/events'), res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.headers['content-type'], 'application/x-dsh-visual-browser-events');
+  assert.match(res.headers['cache-control'], /no-transform/, 'the host gzip middleware must not buffer cues');
+  assert.equal(res.flushed, true);
+  assert.equal(manager.calls.activitySubscribed, 1);
+
+  manager.activityListener({ type: 'activity', phase: 'start', kind: 'click', x: 40, y: 60 });
+  assert.match(res.body, /"phase":"start"/);
+  assert.match(res.body, /"kind":"click"/);
+  assert.match(res.body, /"x":40/);
+  assert.ok(res.body.endsWith('\n'), 'one JSON object per line');
+
+  const acked = await request(manager, 'POST', '/ack', { id: 9 });
+  assert.equal(acked.statusCode, 200);
+  assert.equal(acked.json.acked, true);
+  assert.equal(manager.calls.acked, 9);
+
+  res.emit('close');
+  assert.equal(manager.calls.activityUnsubscribed, true, 'a closed panel releases its cue subscription');
+}
+
+// clear the operation log
+{
+  const manager = makeManager();
+  const cleared = await request(manager, 'POST', '/actions', { action: 'clear' });
+  assert.equal(cleared.statusCode, 200);
+  assert.equal(manager.calls.cleared, true);
+  assert.ok(cleared.json.state, 'the fresh state comes back with the answer');
+
+  const rejected = await request(manager, 'POST', '/actions', { action: 'teleport' });
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(rejected.json.error.code, 'BAD_ACTION');
 }
 
 // start with and without a URL

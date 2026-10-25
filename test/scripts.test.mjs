@@ -191,6 +191,8 @@ const focused = run(prepareTypingExpression({ ref: 3, mode: 'replace' }));
 assert.equal(focused.ok, true);
 assert.equal(focused.tag, 'button');
 assert.equal(document.activeElement, submit);
+assert.equal(focused.x, 50, 'the typing cue needs the field centre');
+assert.equal(focused.y, 116);
 
 const picked = run(selectOptionExpression({ ref: 5, value: 'b' }));
 assert.equal(picked.ok, true);

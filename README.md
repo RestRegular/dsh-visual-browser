@@ -13,7 +13,13 @@ A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a
   instead of "screenshot after the fact" latency.
 - Every action — the Agent's and yours — lands in a collapsible, scrollable
   **operation log** whose height you can drag. Records only: there is nothing to
-  replay.
+  replay; a clear button empties it when it gets long.
+- While the Agent drives, the panel **draws the operation**: a tinted lock veil
+  covers the picture (the browser is locked for that moment), a simulated
+  pointer travels to the target and a water ripple marks the click, scrolls get
+  large arrows fading in the direction of travel, drags swap the pointer for a
+  clenched hand, and key presses get a keycap. The drawn cursor, ripple and
+  action graphics scale with the pane like everything else in the picture.
 - Cookies persist across restarts (one dedicated Chrome profile), so a login the
   Agent performs once keeps working.
 
@@ -48,10 +54,42 @@ dependencies; it talks CDP over the built-in WebSocket).
 
 The operation log at the bottom remembers the Agent's actions and yours. Click
 its header to fold it away, or scroll it when the list is longer than the pane.
-Drag the handle above the log to choose how much room it takes (the picture keeps
-a minimum reserve); double-click the handle to go back to the default, or focus
-it and use ↑ / ↓ (Shift for bigger steps, Home / End for the extremes). The
-chosen height is remembered per browser.
+The trash button clears the whole log. Drag the handle above the log to choose
+how much room it takes (the picture keeps a minimum reserve); double-click the
+handle to go back to the default, or focus it and use ↑ / ↓ (Shift for bigger
+steps, Home / End for the extremes). The chosen height is remembered per browser.
+
+### Watching the Agent act
+
+When a tool starts acting, the panel receives a cue before the input is sent
+(a small NDJSON stream next to the frame stream). It raises the tinted veil,
+moves its own pointer to the target, and only then acknowledges — the real
+click happens when the drawn pointer arrives. The same channel drives:
+
+| Operation | What the picture shows |
+| --- | --- |
+| `click` / `hover` | pointer travel, then a water-ripple click |
+| `scroll` | big chevrons drifting and fading in the scroll direction |
+| `drag` | a clenched hand from the press point to the drop point, then a release |
+| `type` | pointer travel to the field and a typing badge |
+| `key` / `select` | a keycap with the key name or option |
+| `open`, `back`, `forward`, `reload` | the veil and the operation label until the page is ready |
+
+The veil blocks the picture's pointer, wheel, keyboard, address bar and page
+tabs, so a user gesture cannot race the Agent; it lifts by itself when the
+operation ends. Every drawn element scales with the displayed picture, so the
+panel looks right whether the sidebar is narrow or wide. `prefers-reduced-motion`
+shortens the animations without removing the lock.
+
+### Tabs the page opens
+
+A link or button with `target="_blank"` (or `window.open`) is not left
+invisible: the host listens for new page targets, attaches them, and — when the
+tab was opened during an input gesture — switches the panel to it, exactly
+where Chrome put it. The new page appears as a chip in the strip, keeps its own
+history, and closing the old opener leaves it live. Same-tab navigation is
+followed too; a page that never finishes loading only holds the action for a
+bounded grace period instead of freezing the session.
 
 ### Dark mode
 

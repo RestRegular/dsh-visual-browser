@@ -57,6 +57,15 @@
       'timeline.expand': '展开操作记录',
       'timeline.resize': '上下拖动调整操作记录高度，双击复位',
       'timeline.collapse': '折叠操作记录',
+      'timeline.clear': '清空',
+      'timeline.clearTitle': '清空操作记录',
+      'agent.working': 'Agent 正在操作画面',
+      'agent.hint': '画面已锁定',
+      'agent.typing': '输入文字',
+      'agent.scroll.up': '向上滚动',
+      'agent.scroll.down': '向下滚动',
+      'agent.scroll.left': '向左滚动',
+      'agent.scroll.right': '向右滚动',
       'error.offline': '连不上宿主路由（/visual-browser/api），请确认插件已启用且宿主仍在运行。',
       'error.frame': '画面流中断，正在重连…',
       'error.input': '输入没能送到浏览器：',
@@ -116,6 +125,15 @@
       'timeline.expand': 'Expand the action log',
       'timeline.resize': 'Drag up or down to resize the action log; double-click to reset',
       'timeline.collapse': 'Collapse the action log',
+      'timeline.clear': 'Clear',
+      'timeline.clearTitle': 'Clear the action log',
+      'agent.working': 'Agent is driving the page',
+      'agent.hint': 'the picture is locked',
+      'agent.typing': 'typing text',
+      'agent.scroll.up': 'scroll up',
+      'agent.scroll.down': 'scroll down',
+      'agent.scroll.left': 'scroll left',
+      'agent.scroll.right': 'scroll right',
       'error.offline': 'Cannot reach the host route (/visual-browser/api). Check that the plugin is enabled and the host is running.',
       'error.frame': 'The picture stream dropped; reconnecting…',
       'error.input': 'Input never reached the browser:',
@@ -172,13 +190,37 @@
     '.dvb-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
     '.dvb-input:focus{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-1px}',
     // ---- stage ----------------------------------------------------------
-    '.dvb-stage{position:relative;flex:1 1 auto;min-height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);border-bottom:1px solid var(--dsw-alias-border-l1);outline:none}',
+    '.dvb-stage{position:relative;--dvb-scale:1;flex:1 1 auto;min-height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);border-bottom:1px solid var(--dsw-alias-border-l1);outline:none}',
     '.dvb-stage[data-focus="true"]{background:var(--dsw-alias-interactive-bg-hover)}',
     '.dvb-live{display:block;max-width:100%;max-height:100%;width:auto;height:auto;border-radius:6px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);touch-action:none;user-select:none;-webkit-user-drag:none;cursor:none}',
     '.dvb-live[data-busy="true"]{cursor:progress}',
-    '.dvb-cursor{position:absolute;left:0;top:0;width:18px;height:22px;margin:-1px 0 0 -2px;pointer-events:none;opacity:0;will-change:transform;filter:drop-shadow(0 1px 2px rgba(0,0,0,.35))}',
+    // A zero-size anchor: the transform is exactly the viewport point, so the
+    // arrow and the grabbing hand can keep their own hotspots and zoom sizes.
+    '.dvb-cursor{position:absolute;left:0;top:0;width:0;height:0;z-index:9;pointer-events:none;opacity:0;will-change:transform}',
     '.dvb-cursor[data-visible="true"]{opacity:1}',
-    '.dvb-ripple{position:absolute;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;border-radius:50%;background:var(--dsw-alias-brand-primary);opacity:0;pointer-events:none;will-change:transform,opacity}',
+    '.dvb-cursor-arrow{position:absolute;left:calc(-2px * var(--dvb-scale,1));top:calc(-1.5px * var(--dvb-scale,1));width:calc(18px * var(--dvb-scale,1));height:calc(22px * var(--dvb-scale,1));filter:drop-shadow(0 1px 2px rgba(0,0,0,.35));display:block}',
+    '.dvb-cursor[data-mode="hand"] .dvb-cursor-arrow{display:none}',
+    '.dvb-cursor-hand{display:none;position:absolute;left:calc(-8px * var(--dvb-scale,1));top:calc(-6px * var(--dvb-scale,1));width:calc(28px * var(--dvb-scale,1));height:calc(28px * var(--dvb-scale,1));filter:drop-shadow(0 1px 3px rgba(0,0,0,.35))}',
+    '.dvb-cursor[data-mode="hand"] .dvb-cursor-hand{display:block}',
+    '.dvb-ripple{position:absolute;left:0;top:0;z-index:10;width:calc(22px * var(--dvb-scale,1));height:calc(22px * var(--dvb-scale,1));margin:calc(-11px * var(--dvb-scale,1)) 0 0 calc(-11px * var(--dvb-scale,1));border-radius:50%;background:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary));opacity:0;pointer-events:none;will-change:transform,opacity}',
+    // The lock veil: a tinted, click-blocking layer over the picture while the
+    // Agent is executing. The simulated pointer and the action graphics sit
+    // above it, so the operation stays legible.
+    '.dvb-lock{position:absolute;inset:0;z-index:5;display:flex;align-items:flex-start;justify-content:center;padding:10px 10px 0;background:color-mix(in srgb,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)) 24%,transparent);opacity:0;pointer-events:none;transition:opacity .15s ease;cursor:progress}',
+    '.dvb-lock[data-on="true"]{opacity:1;pointer-events:auto}',
+    '.dvb-lock-tag{display:inline-flex;align-items:center;gap:7px;max-width:calc(100% - 20px);min-width:0;padding:5px 11px;border-radius:11px;background:color-mix(in srgb,var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary)) 88%,#000 12%);color:var(--dsw-alias-label-primary-foreground,#fff);font-size:11.5px;line-height:1.35;box-shadow:0 3px 12px rgba(0,0,0,.25)}',
+    '.dvb-lock-dot{width:7px;height:7px;flex:none;border-radius:50%;background:currentColor;animation:dvb-lock-pulse 1.1s ease-in-out infinite}',
+    '.dvb-lock-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.dvb-lock-hint{flex:none;color:color-mix(in srgb,currentColor 72%,transparent);font-size:10.5px}',
+    '@keyframes dvb-lock-pulse{0%,100%{opacity:.35;transform:scale(.75)}50%{opacity:1;transform:scale(1.15)}}',
+    '.dvb-scroll{position:absolute;left:0;top:0;z-index:8;width:calc(46px * var(--dvb-scale,1));height:calc(54px * var(--dvb-scale,1));margin:calc(-27px * var(--dvb-scale,1)) 0 0 calc(-23px * var(--dvb-scale,1));pointer-events:none;color:var(--dsw-alias-label-primary-foreground,#fff);filter:drop-shadow(0 1px 4px rgba(0,0,0,.5))}',
+    '.dvb-scroll-rot{display:block;width:100%;height:100%;transform-origin:50% 50%}',
+    '.dvb-scroll[data-direction="down"] .dvb-scroll-rot{transform:rotate(180deg)}',
+    '.dvb-scroll[data-direction="left"] .dvb-scroll-rot{transform:rotate(-90deg)}',
+    '.dvb-scroll[data-direction="right"] .dvb-scroll-rot{transform:rotate(90deg)}',
+    '.dvb-scroll-anim{display:block;width:100%;height:100%;opacity:0}',
+    '.dvb-key{position:absolute;left:50%;bottom:18%;z-index:11;display:inline-flex;align-items:center;justify-content:center;max-width:70%;padding:calc(5px * var(--dvb-scale,1)) calc(10px * var(--dvb-scale,1));border-radius:calc(8px * var(--dvb-scale,1));border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font:600 calc(12px * var(--dvb-scale,1))/1.25 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;pointer-events:none;box-shadow:0 3px 10px rgba(0,0,0,.3);will-change:transform,opacity}',
+    '.dvb-key-text{overflow:hidden;text-overflow:ellipsis}',
     '.dvb-veil{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:8px;font:inherit;font-size:12px;color:var(--dsw-alias-label-secondary);background:color-mix(in srgb,var(--dsw-alias-bg-layer-1) 78%,transparent);pointer-events:none}',
     '.dvb-retry{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 11px;border-radius:13px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;white-space:nowrap;cursor:pointer;pointer-events:auto}',
     '.dvb-retry:hover{background:var(--dsw-alias-interactive-bg-hover)}',
@@ -189,8 +231,11 @@
     '.dvb-hint{padding:5px 10px 7px;font-size:11px;color:var(--dsw-alias-label-tertiary);display:flex;gap:8px;flex-wrap:wrap;flex:none}',
     // ---- log ------------------------------------------------------------
     '.dvb-log{flex:0 0 auto;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base)}',
-    '.dvb-log-head{display:flex;align-items:center;gap:6px;width:100%;padding:7px 10px;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;text-align:left;cursor:pointer}',
+    '.dvb-log-head-wrap{position:relative;flex:none;min-width:0}',
+    '.dvb-log-head{display:flex;align-items:center;gap:6px;width:100%;padding:7px 44px 7px 10px;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;text-align:left;cursor:pointer}',
     '.dvb-log-head:hover{background:var(--dsw-alias-interactive-bg-hover)}',
+    '.dvb-log-clear{position:absolute;right:8px;top:50%;transform:translateY(-50%);z-index:1;display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-tertiary);cursor:pointer;font:inherit}',
+    '.dvb-log-clear:hover{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));color:var(--dsw-alias-label-primary)}',
     '.dvb-log-chevron{display:inline-flex;transition:transform .16s ease}',
     '.dvb-log[data-open="true"] .dvb-log-chevron{transform:rotate(90deg)}',
     '.dvb-log-title{font-weight:600;color:var(--dsw-alias-label-secondary)}',
@@ -561,6 +606,14 @@
             ]);
           case 'chevron':
             return svg({ size: size || 12 }, [h('path', { key: 'a', d: 'M9.5 6l6 6-6 6' })]);
+          case 'trash':
+            return svg({ size: size || 13 }, [
+              h('path', { key: 'a', d: 'M4 6.5h16' }),
+              h('path', { key: 'b', d: 'M9.5 6.5V4.8h5v1.7' }),
+              h('path', { key: 'c', d: 'M6.5 6.5l.9 13.2h9.2l.9-13.2' }),
+              h('path', { key: 'd', d: 'M10.2 10v6.4' }),
+              h('path', { key: 'e', d: 'M13.8 10v6.4' }),
+            ]);
           case 'globe':
             return svg({ size: size || 24, strokeWidth: 1.6 }, [
               h('circle', { key: 'a', cx: 12, cy: 12, r: 8.5 }),
@@ -730,6 +783,7 @@
         startedAt: 0,
         actionSeq: 0,
         actions: [],
+        agentBusy: false,
         allowUserControl: true,
         lastError: '',
       };
@@ -768,6 +822,11 @@
         var [streamRetry, setStreamRetry] = useState(0);
         var [retrying, setRetrying] = useState(false);
         var [focused, setFocused] = useState(false);
+        // Agent-operation veil: `agentBusy` is the local animation lock, while
+        // `state.agentBusy` is the host's own answer (the fallback when the
+        // cue stream is unavailable and for operations that outlive an animation).
+        var [agentBusy, setAgentBusy] = useState(false);
+        var [agentLabel, setAgentLabel] = useState('');
 
         var rootRef = useRef(null);
         var logRef = useRef(null);
@@ -781,6 +840,21 @@
         var lastFrameAtRef = useRef(0);
         var cursorRef = useRef(null);
         var rippleRef = useRef(null);
+        var scrollRef = useRef(null);
+        var keyRef = useRef(null);
+        // Where the drawn pointer currently sits, in stage pixels.
+        var cursorStageRef = useRef(null);
+        var cursorAnimRef = useRef(null);
+        var scrollSeqRef = useRef(0);
+        var keySeqRef = useRef(0);
+        // Agent-lock bookkeeping: keep the veil up until the last drawn
+        // animation (and, for navigation, until the host really finished).
+        var lockedRef = useRef(false);
+        var lockUntilRef = useRef(0);
+        var lockTimerRef = useRef(0);
+        var longCueRef = useRef(false);
+        var eventsLiveRef = useRef(false);
+        var playCueRef = useRef(null);
         var pointerRef = useRef({ down: false, id: 0, x: 0, y: 0, moved: 0, clicks: 1, lastUpAt: 0, lastUpX: 0, lastUpY: 0, button: 0 });
         var pointerUpRef = useRef(null);
         var stateJsonRef = useRef('');
@@ -928,6 +1002,7 @@
                 if (canvas.width !== bitmap.width || canvas.height !== bitmap.height) {
                   canvas.width = bitmap.width;
                   canvas.height = bitmap.height;
+                  applyScale();
                 }
                 var context = canvas.getContext('2d');
                 if (context) context.drawImage(bitmap, 0, 0);
@@ -1064,6 +1139,77 @@
           return rect;
         };
 
+        /**
+         * The picture is displayed at whatever size the pane allows, so the
+         * drawn cursor, ripple and action graphics scale with it. The factor is
+         * exposed as `--dvb-scale` for CSS and used to map viewport coordinates
+         * (the Agent's coordinate space) onto stage pixels.
+         */
+        var applyScale = function () {
+          var canvas = canvasRef.current;
+          var stage = stageRef.current;
+          if (!canvas || !stage) return 1;
+          var rect = canvas.getBoundingClientRect();
+          var intrinsic = canvas.width > 0 ? canvas.width : (state.viewport && state.viewport.width) || 1280;
+          var scale = rect.width > 1 ? rect.width / intrinsic : 1;
+          scale = Math.min(2.5, Math.max(0.15, scale));
+          stage.style.setProperty('--dvb-scale', String(Math.round(scale * 1000) / 1000));
+          return scale;
+        };
+
+        var stagePointFromViewport = function (x, y) {
+          var canvas = canvasRef.current;
+          var stage = stageRef.current;
+          if (!canvas || !stage) return null;
+          var cRect = canvas.getBoundingClientRect();
+          var sRect = stage.getBoundingClientRect();
+          if (cRect.width < 2) return null;
+          var scale = cRect.width / (canvas.width > 0 ? canvas.width : 1);
+          return {
+            x: cRect.left - sRect.left + Number(x || 0) * scale,
+            y: cRect.top - sRect.top + Number(y || 0) * scale,
+          };
+        };
+
+        var pictureCenter = function () {
+          var canvas = canvasRef.current;
+          var stage = stageRef.current;
+          if (!canvas || !stage) return { x: 0, y: 0 };
+          var cRect = canvas.getBoundingClientRect();
+          var sRect = stage.getBoundingClientRect();
+          return {
+            x: cRect.left - sRect.left + cRect.width / 2,
+            y: cRect.top - sRect.top + cRect.height / 2,
+          };
+        };
+
+        useEffect(
+          function () {
+            var canvas = canvasRef.current;
+            var stage = stageRef.current;
+            if (!canvas || !stage) return undefined;
+            applyScale();
+            if (typeof ResizeObserver !== 'function') {
+              var onResize = function () {
+                applyScale();
+              };
+              window.addEventListener('resize', onResize);
+              return function () {
+                window.removeEventListener('resize', onResize);
+              };
+            }
+            var observer = new ResizeObserver(function () {
+              applyScale();
+            });
+            observer.observe(canvas);
+            observer.observe(stage);
+            return function () {
+              observer.disconnect();
+            };
+          },
+          [state.running, state.startedAt],
+        );
+
         var toNormalized = function (event) {
           var rect = frameRect();
           if (!rect) return null;
@@ -1080,6 +1226,8 @@
           var stageRect = stage.getBoundingClientRect();
           var x = event.clientX - stageRect.left;
           var y = event.clientY - stageRect.top;
+          cursorStageRef.current = { x: x, y: y };
+          ring.setAttribute('data-mode', 'arrow');
           ring.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
           ring.setAttribute('data-visible', 'true');
         };
@@ -1089,25 +1237,440 @@
           if (ring) ring.setAttribute('data-visible', 'false');
         };
 
-        var ripple = function (event) {
-          var stage = stageRef.current;
+        var reduceMotion = function () {
+          try {
+            return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+          } catch {
+            return false;
+          }
+        };
+
+        var playRippleAt = function (x, y) {
           var mark = rippleRef.current;
-          if (!stage || !mark || typeof mark.animate !== 'function') return;
-          var stageRect = stage.getBoundingClientRect();
-          var x = event.clientX - stageRect.left;
-          var y = event.clientY - stageRect.top;
+          if (!mark || typeof mark.animate !== 'function') return;
           try {
             mark.animate(
               [
                 { transform: 'translate3d(' + x + 'px,' + y + 'px,0) scale(.35)', opacity: 0.5 },
                 { transform: 'translate3d(' + x + 'px,' + y + 'px,0) scale(2.1)', opacity: 0 },
               ],
-              { duration: 340, easing: 'ease-out' },
+              { duration: reduceMotion() ? 120 : 340, easing: 'ease-out' },
             );
           } catch {
             /* older engines simply skip the ripple */
           }
         };
+
+        var ripple = function (event) {
+          var stage = stageRef.current;
+          if (!stage) return;
+          var stageRect = stage.getBoundingClientRect();
+          playRippleAt(event.clientX - stageRect.left, event.clientY - stageRect.top);
+        };
+
+        var setCursorMode = function (mode) {
+          var ring = cursorRef.current;
+          if (ring) ring.setAttribute('data-mode', mode);
+        };
+
+        // ---- agent operation animation ------------------------------------
+
+        var cancelCursorAnimation = function () {
+          var animation = cursorAnimRef.current;
+          cursorAnimRef.current = null;
+          if (animation !== null) {
+            try {
+              animation.cancel();
+            } catch {
+              /* already finished */
+            }
+          }
+        };
+
+        var moveCursorTo = function (x, y, duration) {
+          var ring = cursorRef.current;
+          if (!ring) return Promise.resolve();
+          var from = cursorStageRef.current || pictureCenter();
+          cursorStageRef.current = { x: x, y: y };
+          cancelCursorAnimation();
+          ring.setAttribute('data-mode', 'arrow');
+          ring.setAttribute('data-visible', 'true');
+          var finalTransform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+          if (!(duration > 0) || typeof ring.animate !== 'function') {
+            ring.style.transform = finalTransform;
+            return Promise.resolve();
+          }
+          var animation = null;
+          try {
+            animation = ring.animate(
+              [
+                { transform: 'translate3d(' + from.x + 'px,' + from.y + 'px,0)' },
+                { transform: finalTransform },
+              ],
+              { duration: duration, easing: 'cubic-bezier(.3,0,.18,1)', fill: 'forwards' },
+            );
+          } catch {
+            ring.style.transform = finalTransform;
+            return Promise.resolve();
+          }
+          cursorAnimRef.current = animation;
+          var settle = function () {
+            if (cursorAnimRef.current === animation) cursorAnimRef.current = null;
+            ring.style.transform = finalTransform;
+            try {
+              animation.cancel();
+            } catch {
+              /* finished */
+            }
+          };
+          return animation.finished.then(settle, settle);
+        };
+
+        /** The clenched hand travels the drag path while the real drag runs. */
+        var moveHandTo = function (from, to, duration) {
+          var ring = cursorRef.current;
+          if (!ring) return Promise.resolve();
+          cancelCursorAnimation();
+          var finalTransform = 'translate3d(' + to.x + 'px,' + to.y + 'px,0)';
+          cursorStageRef.current = { x: to.x, y: to.y };
+          var ms = Math.max(0, Math.round(duration || 0));
+          if (ms === 0 || typeof ring.animate !== 'function') {
+            ring.style.transform = finalTransform;
+            return Promise.resolve();
+          }
+          var frames = [];
+          for (var index = 0; index <= 16; index += 1) {
+            var t = index / 16;
+            var eased = t * t * (3 - 2 * t);
+            frames.push({
+              offset: t,
+              transform:
+                'translate3d(' +
+                (from.x + (to.x - from.x) * eased) +
+                'px,' +
+                (from.y + (to.y - from.y) * eased) +
+                'px,0)',
+            });
+          }
+          var animation = null;
+          try {
+            animation = ring.animate(frames, { duration: ms, easing: 'linear', fill: 'forwards' });
+          } catch {
+            ring.style.transform = finalTransform;
+            return Promise.resolve();
+          }
+          cursorAnimRef.current = animation;
+          var settle = function () {
+            if (cursorAnimRef.current === animation) cursorAnimRef.current = null;
+            ring.style.transform = finalTransform;
+            try {
+              animation.cancel();
+            } catch {
+              /* finished */
+            }
+          };
+          return animation.finished.then(settle, settle);
+        };
+
+        /** Big chevrons drift the way the page scrolls, then fade away. */
+        var playScroll = function (direction, point, reduce) {
+          var el = scrollRef.current;
+          if (!el) return;
+          el.setAttribute('data-direction', direction);
+          el.style.left = point.x + 'px';
+          el.style.top = point.y + 'px';
+          var target = el.querySelector('.dvb-scroll-anim');
+          if (!target || typeof target.animate !== 'function') return;
+          try {
+            target.animate(
+              [
+                { transform: 'translateY(18px) scale(.72)', opacity: 0 },
+                { transform: 'translateY(0px) scale(1)', opacity: 1, offset: 0.28 },
+                { transform: 'translateY(-38px) scale(1.08)', opacity: 0 },
+              ],
+              { duration: reduce ? 130 : 620, easing: 'ease-out' },
+            );
+          } catch {
+            /* no animation support: the lock still shows what is happening */
+          }
+        };
+
+        /** A keycap for key presses and native <select> picks. */
+        var playKey = function (text, reduce) {
+          var el = keyRef.current;
+          if (!el) return;
+          var label = el.querySelector('.dvb-key-text');
+          if (label) label.textContent = text;
+          if (typeof el.animate !== 'function') return;
+          try {
+            el.animate(
+              [
+                { transform: 'translateX(-50%) translateY(12px) scale(.82)', opacity: 0 },
+                { transform: 'translateX(-50%) translateY(0) scale(1)', opacity: 1, offset: 0.24 },
+                { transform: 'translateX(-50%) translateY(-14px) scale(1)', opacity: 0 },
+              ],
+              { duration: reduce ? 140 : 560, easing: 'ease-out' },
+            );
+          } catch {
+            /* no animation support */
+          }
+        };
+
+        var ackActivity = function (id) {
+          if (id === undefined || id === null) return;
+          void fetch(API + '/ack', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ id: id }),
+          }).catch(function () {
+            /* the host's own timeout releases the action anyway */
+          });
+        };
+
+        var lockNow = function (value) {
+          lockedRef.current = value;
+          setAgentBusy(value);
+        };
+
+        /** Keep the veil up for at least `ms`, never shortening an earlier hold. */
+        var holdLock = function (ms) {
+          if (!lockedRef.current) lockNow(true);
+          var until = Date.now() + Math.max(0, ms || 0);
+          if (until > lockUntilRef.current) lockUntilRef.current = until;
+          if (lockTimerRef.current !== 0) window.clearTimeout(lockTimerRef.current);
+          var wait = Math.max(0, lockUntilRef.current - Date.now());
+          lockTimerRef.current = window.setTimeout(function () {
+            lockTimerRef.current = 0;
+            if (Date.now() + 15 < lockUntilRef.current) return;
+            lockNow(false);
+          }, wait + 15);
+        };
+
+        var actionLabelFor = function (cue) {
+          var kind = String(cue.kind || '');
+          var detail = typeof cue.detail === 'string' ? cue.detail : '';
+          if (kind === 'scroll') return tRef.current('agent.scroll.' + String(cue.direction || 'down'));
+          var base = kindLabel(kind);
+          if (kind === 'type') return tRef.current('agent.typing') + (detail ? ' · ' + detail : '');
+          return detail ? base + ' · ' + detail : base;
+        };
+
+        /**
+         * One Agent cue: start the pointer travel, the click ripple, the scroll
+         * arrows, the drag hand or a keycap, then ack the host so it dispatches
+         * the real input right when the drawing says it happens.
+         */
+        var playCue = function (cue) {
+          if (!cue || cue.type !== 'activity') return;
+          var kind = String(cue.kind || 'action');
+          if (cue.phase === 'end') {
+            longCueRef.current = false;
+            holdLock(reduceMotion() ? 90 : 190);
+            void refreshState();
+            return;
+          }
+          if (cue.phase !== 'start') return;
+          var reduce = reduceMotion();
+          setAgentLabel(actionLabelFor(cue));
+          longCueRef.current = kind === 'open' || kind === 'back' || kind === 'forward' || kind === 'reload';
+          // Navigation can outlive any single animation: let the host's own
+          // busy flag take over the veil by reading it right away.
+          if (longCueRef.current) void refreshState();
+          var canvas = canvasRef.current;
+          if (!canvas || !stageRef.current || canvas.getBoundingClientRect().width < 2) {
+            holdLock(500);
+            ackActivity(cue.id);
+            return;
+          }
+          var center = pictureCenter();
+          var start = cursorStageRef.current || center;
+          var travelFor = function (to) {
+            if (reduce) return 40;
+            var distance = Math.sqrt((to.x - start.x) * (to.x - start.x) + (to.y - start.y) * (to.y - start.y));
+            return Math.round(Math.min(420, Math.max(150, distance * 0.55)));
+          };
+          switch (kind) {
+            case 'click': {
+              var point = stagePointFromViewport(cue.x, cue.y) || center;
+              var travel = travelFor(point);
+              holdLock(travel + (reduce ? 220 : 500));
+              moveCursorTo(point.x, point.y, travel).then(function () {
+                playRippleAt(point.x, point.y);
+                ackActivity(cue.id);
+              });
+              break;
+            }
+            case 'hover': {
+              var point = stagePointFromViewport(cue.x, cue.y) || center;
+              var travel = travelFor(point);
+              holdLock(travel + 340);
+              moveCursorTo(point.x, point.y, travel).then(function () {
+                ackActivity(cue.id);
+              });
+              break;
+            }
+            case 'type': {
+              var point = Number.isFinite(cue.x) && Number.isFinite(cue.y) ? stagePointFromViewport(cue.x, cue.y) : null;
+              if (!point) {
+                holdLock(700);
+                ackActivity(cue.id);
+                break;
+              }
+              var travel = travelFor(point);
+              holdLock(travel + (reduce ? 220 : 520));
+              moveCursorTo(point.x, point.y, travel).then(function () {
+                ackActivity(cue.id);
+              });
+              break;
+            }
+            case 'drag': {
+              var from = Number.isFinite(cue.x) && Number.isFinite(cue.y) ? stagePointFromViewport(cue.x, cue.y) : center;
+              var to = Number.isFinite(cue.toX) && Number.isFinite(cue.toY) ? stagePointFromViewport(cue.toX, cue.toY) : from;
+              var travel = travelFor(from);
+              var dragMs = reduce ? 140 : Math.max(120, Math.min(2000, Number(cue.durationMs) || 420));
+              holdLock(travel + dragMs + 520);
+              moveCursorTo(from.x, from.y, travel).then(function () {
+                setCursorMode('hand');
+                ackActivity(cue.id);
+                void moveHandTo(from, to, dragMs).then(function () {
+                  setCursorMode('arrow');
+                  playRippleAt(to.x, to.y);
+                });
+              });
+              break;
+            }
+            case 'scroll': {
+              var point = stagePointFromViewport(cue.x, cue.y) || center;
+              holdLock(reduce ? 260 : 760);
+              playScroll(String(cue.direction || 'down'), point, reduce);
+              ackActivity(cue.id);
+              break;
+            }
+            case 'key': {
+              holdLock(reduce ? 260 : 620);
+              playKey(String(cue.detail || ''), reduce);
+              ackActivity(cue.id);
+              break;
+            }
+            case 'select': {
+              holdLock(reduce ? 260 : 620);
+              playKey(String(cue.detail || kindLabel('select')), reduce);
+              ackActivity(cue.id);
+              break;
+            }
+            case 'open':
+            case 'back':
+            case 'forward':
+            case 'reload': {
+              holdLock(600);
+              ackActivity(cue.id);
+              break;
+            }
+            default: {
+              holdLock(600);
+              ackActivity(cue.id);
+            }
+          }
+        };
+        playCueRef.current = playCue;
+
+        useEffect(
+          function () {
+            return function () {
+              if (lockTimerRef.current !== 0) window.clearTimeout(lockTimerRef.current);
+              cancelCursorAnimation();
+            };
+          },
+          [],
+        );
+
+        // The host pushes a cue the instant an Agent tool starts acting, so the
+        // veil goes up before the click lands instead of a poll later. A cue
+        // stream that dies keeps the state-poll fallback alive.
+        useEffect(
+          function () {
+            if (!state.running) {
+              eventsLiveRef.current = false;
+              return undefined;
+            }
+            var cancelled = false;
+            var controller = null;
+            var reader = null;
+            var retryTimer = 0;
+            var decoder = new TextDecoder();
+            var buffer = '';
+            var schedule = function () {
+              if (cancelled || retryTimer !== 0) return;
+              retryTimer = window.setTimeout(function () {
+                retryTimer = 0;
+                void connect();
+              }, 1500);
+            };
+            var connect = async function () {
+              if (cancelled) return;
+              controller = new AbortController();
+              try {
+                var response = await fetch(API + '/events?r=' + (state.startedAt || 0), {
+                  signal: controller.signal,
+                  cache: 'no-store',
+                });
+                if (cancelled) return;
+                if (!response.ok || !response.body) {
+                  eventsLiveRef.current = false;
+                  schedule();
+                  return;
+                }
+                eventsLiveRef.current = true;
+                reader = response.body.getReader();
+                var loop = async function () {
+                  var step = await reader.read();
+                  if (cancelled) return;
+                  if (step.done) {
+                    eventsLiveRef.current = false;
+                    schedule();
+                    return;
+                  }
+                  buffer += decoder.decode(step.value, { stream: true });
+                  var index;
+                  while ((index = buffer.indexOf('\n')) >= 0) {
+                    var line = buffer.slice(0, index);
+                    buffer = buffer.slice(index + 1);
+                    if (line === '') continue;
+                    try {
+                      var cue = JSON.parse(line);
+                      if (typeof playCueRef.current === 'function') playCueRef.current(cue);
+                    } catch {
+                      /* a malformed cue is not worth tearing the stream down */
+                    }
+                  }
+                  await loop();
+                };
+                void loop();
+              } catch {
+                if (cancelled) return;
+                eventsLiveRef.current = false;
+                schedule();
+              }
+            };
+            void connect();
+            return function () {
+              cancelled = true;
+              eventsLiveRef.current = false;
+              if (retryTimer !== 0) window.clearTimeout(retryTimer);
+              try {
+                if (reader) void reader.cancel();
+              } catch {
+                /* already closed */
+              }
+              try {
+                if (controller) controller.abort();
+              } catch {
+                /* already closed */
+              }
+            };
+          },
+          [state.running, state.startedAt],
+        );
 
         var clickCountFor = function (point) {
           var pointer = pointerRef.current;
@@ -1133,7 +1696,7 @@
         };
 
         var onPointerDown = function (event) {
-          if (!state.running || !state.allowUserControl) return;
+          if (!state.running || !state.allowUserControl || lockedRef.current) return;
           if (event.button !== 0 && event.button !== 2 && event.button !== 1) return;
           var point = toNormalized(event);
           if (!point) return;
@@ -1181,7 +1744,7 @@
         };
 
         var onPointerMove = function (event) {
-          if (!state.running || !state.allowUserControl) return;
+          if (!state.running || !state.allowUserControl || lockedRef.current) return;
           placeCursor(event);
           var point = toNormalized(event);
           if (!point) return;
@@ -1269,7 +1832,7 @@
             var canvas = canvasRef.current;
             if (!canvas) return undefined;
             var onWheel = function (event) {
-              if (!state.running || !state.allowUserControl) return;
+              if (!state.running || !state.allowUserControl || lockedRef.current) return;
               event.preventDefault();
               var rect = frameRect();
               if (!rect) return;
@@ -1294,7 +1857,7 @@
         );
 
         var onKeyDown = function (event) {
-          if (!state.running || !state.allowUserControl) return;
+          if (!state.running || !state.allowUserControl || lockedRef.current) return;
           var text = typedText(event);
           if (text === '' && (event.ctrlKey || event.metaKey) && event.key === 'v') {
             return; // paste is handled by onPaste with real clipboard text
@@ -1314,7 +1877,7 @@
         };
 
         var onKeyUp = function (event) {
-          if (!state.running || !state.allowUserControl) return;
+          if (!state.running || !state.allowUserControl || lockedRef.current) return;
           event.preventDefault();
           sender.send({
             t: 'key',
@@ -1328,7 +1891,7 @@
         };
 
         var onPaste = function (event) {
-          if (!state.running || !state.allowUserControl) return;
+          if (!state.running || !state.allowUserControl || lockedRef.current) return;
           var data = event.clipboardData;
           var text = data ? data.getData('text/plain') : '';
           if (!text) return;
@@ -1542,6 +2105,10 @@
               : t('state.stopped');
 
         var actions = state.actions || [];
+        // The local animation lock is authoritative; the host's own flag only
+        // matters for operations that outlive their animation (navigation) or
+        // when the cue stream is down.
+        var locked = agentBusy || (state.agentBusy === true && (longCueRef.current || !eventsLiveRef.current));
 
         return h(
           'div',
@@ -1572,7 +2139,7 @@
                   className: 'dvb-btn',
                   title: t('action.back'),
                   'aria-label': t('action.back'),
-                  disabled: !state.running || Boolean(busy),
+                  disabled: !state.running || Boolean(busy) || locked,
                   onClick: function () {
                     void run('back', '/nav', { action: 'back' });
                   },
@@ -1586,7 +2153,7 @@
                   className: 'dvb-btn',
                   title: t('action.forward'),
                   'aria-label': t('action.forward'),
-                  disabled: !state.running || Boolean(busy),
+                  disabled: !state.running || Boolean(busy) || locked,
                   onClick: function () {
                     void run('forward', '/nav', { action: 'forward' });
                   },
@@ -1600,7 +2167,7 @@
                   className: 'dvb-btn',
                   title: t('action.reload'),
                   'aria-label': t('action.reload'),
-                  disabled: !state.running || Boolean(busy),
+                  disabled: !state.running || Boolean(busy) || locked,
                   onClick: function () {
                     void run('reload', '/nav', { action: 'reload' });
                   },
@@ -1614,7 +2181,7 @@
                   className: 'dvb-btn',
                   title: t('tab.new'),
                   'aria-label': t('tab.new'),
-                  disabled: !state.running || Boolean(busy),
+                  disabled: !state.running || Boolean(busy) || locked,
                   onClick: openNewPage,
                 },
                 icon('plus', 16),
@@ -1627,7 +2194,7 @@
                       className: 'dvb-btn',
                       title: t('action.stop'),
                       'aria-label': t('action.stop'),
-                      disabled: Boolean(busy),
+                      disabled: Boolean(busy) || locked,
                       onClick: function () {
                         void run('stop', '/stop', {});
                       },
@@ -1640,7 +2207,7 @@
                       type: 'button',
                       className: 'dvb-btn',
                       'data-variant': 'primary',
-                      disabled: Boolean(busy),
+                      disabled: Boolean(busy) || locked,
                       onClick: openOrStart,
                     },
                     icon('play', 14),
@@ -1664,6 +2231,7 @@
                         title: page.title || page.url || page.id,
                         role: 'tab',
                         'aria-selected': String(page.active === true),
+                        disabled: locked,
                         onClick: function () {
                           if (page.active !== true) void run('select-page', '/page', { action: 'select', id: page.id });
                         },
@@ -1677,6 +2245,7 @@
                         className: 'dvb-tab-close',
                         title: t('tab.close'),
                         'aria-label': t('tab.close'),
+                        disabled: locked,
                         onClick: function () {
                           void run('close-page', '/page', { action: 'close', id: page.id });
                         },
@@ -1695,6 +2264,7 @@
               className: 'dvb-input',
               type: 'text',
               spellCheck: false,
+              disabled: locked,
               placeholder: t('url.placeholder'),
               value: draft,
               onChange: function (event) {
@@ -1713,7 +2283,7 @@
               {
                 type: 'button',
                 className: 'dvb-btn',
-                disabled: Boolean(busy) || draft.trim() === '',
+                disabled: Boolean(busy) || locked || draft.trim() === '',
                 onClick: openOrStart,
               },
               t('action.open'),
@@ -1770,7 +2340,9 @@
                   h('div', { className: 'dvb-empty-title' }, t('empty.title')),
                   h('div', { className: 'dvb-empty-desc' }, t('empty.desc')),
                 ),
-            state.running && !live ? h('div', { className: 'dvb-veil' }, t(retrying ? 'error.frame' : 'connecting')) : null,
+            state.running && !live
+              ? h('div', { key: 'veil', className: 'dvb-veil' }, t(retrying ? 'error.frame' : 'connecting'))
+              : null,
             // Out of the flow on purpose: it must never reflow the picture under
             // a pointer that is already aiming at something.
             inputError !== ''
@@ -1785,19 +2357,54 @@
             state.running && retrying
               ? h(
                   'button',
-                  { type: 'button', className: 'dvb-retry', title: t('action.reconnect'), onClick: retryStream },
+                  { key: 'retry', type: 'button', className: 'dvb-retry', title: t('action.reconnect'), onClick: retryStream },
                   icon('reload', 13),
                   t('action.reconnect'),
                 )
               : null,
+            // While an Agent tool is acting, a tinted veil covers the picture
+            // and swallows the user's pointer; the drawn cursor and the action
+            // graphics stay on top of it.
+            state.running
+              ? h(
+                  'div',
+                  {
+                    key: 'lock',
+                    className: 'dvb-lock',
+                    'data-on': String(locked),
+                    'aria-hidden': String(!locked),
+                  },
+                  h(
+                    'div',
+                    { className: 'dvb-lock-tag', role: 'status', 'aria-live': 'polite' },
+                    h('span', { className: 'dvb-lock-dot' }),
+                    h('span', { className: 'dvb-lock-text' }, agentLabel || t('agent.working')),
+                    h('span', { className: 'dvb-lock-hint' }, t('agent.hint')),
+                  ),
+                )
+              : null,
             h(
               'span',
-              { className: 'dvb-cursor', ref: cursorRef, 'data-visible': 'false', 'aria-hidden': 'true' },
+              {
+                key: 'cursor',
+                className: 'dvb-cursor',
+                ref: cursorRef,
+                'data-visible': 'false',
+                'data-mode': 'arrow',
+                'aria-hidden': 'true',
+              },
               // The pointer shape, not a ring: the page's own cursor is not part
               // of the screencast, so this is the only cursor the user sees.
               h(
                 'svg',
-                { width: 18, height: 22, viewBox: '0 0 18 22', fill: 'none', 'aria-hidden': true, focusable: false },
+                {
+                  key: 'arrow',
+                  className: 'dvb-cursor-arrow',
+                  viewBox: '0 0 18 22',
+                  fill: 'none',
+                  'aria-hidden': true,
+                  focusable: false,
+                },
                 h('path', {
                   d: 'M2 1.5 2 17.2 6.3 13.3 9 19.6 12 18.3 9.3 12.1 15.4 12.1 Z',
                   fill: '#fff',
@@ -1806,14 +2413,74 @@
                   strokeLinejoin: 'round',
                 }),
               ),
+              // A drag becomes a grabbing hand: fingers curl at the press and
+              // open again when the drop lands.
+              h(
+                'svg',
+                {
+                  key: 'hand',
+                  className: 'dvb-cursor-hand',
+                  viewBox: '0 0 28 28',
+                  fill: 'none',
+                  'aria-hidden': true,
+                  focusable: false,
+                },
+                h('path', {
+                  d: 'M7 14.2V9.4a1.8 1.8 0 0 1 3.6 0v3.1V7.2a1.8 1.8 0 0 1 3.6 0v5V8.4a1.8 1.8 0 0 1 3.6 0v4.9V9.8a1.8 1.8 0 0 1 3.6 0v6.1c0 4.4-2.9 7.3-7.4 7.3h-1c-2.7 0-4.7-1.2-6.2-3.5l-1.8-2.7a1.8 1.8 0 0 1 2.9-2l1.5 1.8Z',
+                  fill: '#fff',
+                  stroke: '#111',
+                  strokeWidth: 1.2,
+                  strokeLinejoin: 'round',
+                }),
+              ),
             ),
-            h('span', { className: 'dvb-ripple', ref: rippleRef }),
+            h('span', { key: 'ripple', className: 'dvb-ripple', ref: rippleRef, 'aria-hidden': 'true' }),
+            h(
+              'span',
+              {
+                key: 'scroll',
+                className: 'dvb-scroll',
+                ref: scrollRef,
+                'data-direction': 'down',
+                'aria-hidden': 'true',
+              },
+              h(
+                'span',
+                { className: 'dvb-scroll-rot' },
+                h(
+                  'span',
+                  { className: 'dvb-scroll-anim' },
+                  h(
+                    'svg',
+                    {
+                      viewBox: '0 0 46 54',
+                      width: '100%',
+                      height: '100%',
+                      fill: 'none',
+                      stroke: 'currentColor',
+                      strokeWidth: 5.5,
+                      strokeLinecap: 'round',
+                      strokeLinejoin: 'round',
+                      'aria-hidden': true,
+                      focusable: false,
+                    },
+                    h('path', { key: 'a', d: 'M10 32 L23 19 L36 32' }),
+                    h('path', { key: 'b', d: 'M10 48 L23 35 L36 48' }),
+                  ),
+                ),
+              ),
+            ),
+            h(
+              'span',
+              { key: 'keycap', className: 'dvb-key', ref: keyRef, 'aria-hidden': 'true' },
+              h('span', { className: 'dvb-key-text' }),
+            ),
           ),
           state.running && state.allowUserControl
             ? h(
                 'div',
                 { key: 'hint', className: 'dvb-hint' },
-                h('span', null, t('hint.interactive')),
+                h('span', null, locked ? t('agent.working') : t('hint.interactive')),
                 state.headless ? h('span', null, t('hint.headless')) : null,
               )
             : null,
@@ -1846,23 +2513,43 @@
               style: logHeight !== null ? { '--dvb-log-h': logHeight + 'px' } : undefined,
             },
             h(
-              'button',
-              {
-                type: 'button',
-                className: 'dvb-log-head',
-                title: logOpen ? t('timeline.collapse') : t('timeline.expand'),
-                'aria-expanded': String(logOpen),
-                onClick: function () {
-                  setLogOpen(function (value) {
-                    return !value;
-                  });
+              'div',
+              { key: 'log-head', className: 'dvb-log-head-wrap' },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dvb-log-head',
+                  title: logOpen ? t('timeline.collapse') : t('timeline.expand'),
+                  'aria-expanded': String(logOpen),
+                  onClick: function () {
+                    setLogOpen(function (value) {
+                      return !value;
+                    });
+                  },
                 },
-              },
-              h('span', { className: 'dvb-log-chevron' }, icon('chevron', 12)),
-              h('span', { className: 'dvb-log-title' }, t('timeline.title')),
-              h('span', { className: 'dvb-log-count' }, actions.length > 0 ? String(actions.length) : ''),
-              h('span', { className: 'dvb-spacer' }),
-              reachable ? null : h('span', { className: 'dvb-status' }, t('state.offline')),
+                h('span', { className: 'dvb-log-chevron' }, icon('chevron', 12)),
+                h('span', { className: 'dvb-log-title' }, t('timeline.title')),
+                h('span', { className: 'dvb-log-count' }, actions.length > 0 ? String(actions.length) : ''),
+                h('span', { className: 'dvb-spacer' }),
+                reachable ? null : h('span', { className: 'dvb-status' }, t('state.offline')),
+              ),
+              actions.length > 0
+                ? h(
+                    'button',
+                    {
+                      key: 'clear',
+                      type: 'button',
+                      className: 'dvb-log-clear',
+                      title: t('timeline.clearTitle'),
+                      'aria-label': t('timeline.clearTitle'),
+                      onClick: function () {
+                        void run(t('timeline.clear'), '/actions', { action: 'clear' });
+                      },
+                    },
+                    icon('trash', 13),
+                  )
+                : null,
             ),
             logOpen
               ? h(
