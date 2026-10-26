@@ -22,6 +22,10 @@ A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a
   action graphics scale with the pane like everything else in the picture.
 - Cookies persist across restarts (one dedicated Chrome profile), so a login the
   Agent performs once keeps working.
+- Native widgets that are not page content are filled rather than faked: file
+  choosers receive real paths, and date / time / month / week / colour / range
+  inputs get a real value, so their OS dialogs and browser popups never block a
+  headless session.
 
 ## Install
 
@@ -69,6 +73,7 @@ click happens when the drawn pointer arrives. The same channel drives:
 | Operation | What the picture shows |
 | --- | --- |
 | `click` / `hover` | pointer travel, then a water-ripple click |
+| `upload` | the same pointer travel to the control, then the file chooser is filled |
 | `scroll` | big chevrons drifting and fading in the scroll direction |
 | `drag` | a clenched hand from the press point to the drop point, then a release |
 | `type` | pointer travel to the field and a typing badge |
@@ -104,9 +109,24 @@ only literal colour in the bundle is the `#fff` fallback after
 | --- | --- |
 | `browser_open` | Open a URL (launches Chrome on first use) and return the numbered view. |
 | `browser_see` | Fresh numbered view of the current page. |
-| `browser_act` | `click` / `drag` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view. |
+| `browser_act` | `click` / `upload` / `drag` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view. |
 | `browser_text` | Read text of the page or of one element (a link also returns its `href`). |
 | `browser_screenshot` | Save a PNG/JPEG to disk and return the path (feed it to `read_image`). |
+
+### Native controls: the parts that are not page content
+
+Some controls are drawn by the browser or the operating system, so they never
+appear in a picture and CDP input never reaches them. The plugin writes the
+value instead of pretending to click:
+
+| Control | What happens |
+| --- | --- |
+| file picker (`<input type=file>`, any "upload" button) | `upload` with `files: ['/abs/a.png']` intercepts the chooser and hands the browser real paths — the page receives the same `change` event a human picking the file produces. A plain `click` that wants files reports `that click opened a file chooser` instead of leaving an OS dialog in front of a headless browser. |
+| a control that only hides an `<input type=file>` | the files are written straight into the input, no click needed. |
+| `input type=date / time / month / week / datetime-local` | `type` writes the value (`2026/10/6` → `2026-10-06`), so the calendar popup is never needed. |
+| `input type=color` | `type` accepts `#1a2` and writes `#11aa22`. |
+| `input type=range` | `type` writes a number, clamped to `min`/`max` and snapped to `step`; `drag` works normally too. |
+| `<select>` | `select` writes the option and fires `input` + `change`. |
 
 ### What the Agent sees
 

@@ -73,6 +73,7 @@
       'kind.close': '关闭',
       'kind.open': '打开',
       'kind.click': '点击',
+      'kind.upload': '上传',
       'kind.drag': '拖动',
       'kind.type': '输入',
       'kind.key': '按键',
@@ -141,6 +142,7 @@
       'kind.close': 'close',
       'kind.open': 'open',
       'kind.click': 'click',
+      'kind.upload': 'upload',
       'kind.drag': 'drag',
       'kind.type': 'type',
       'kind.key': 'key',
@@ -1490,7 +1492,8 @@
             return Math.round(Math.min(420, Math.max(150, distance * 0.55)));
           };
           switch (kind) {
-            case 'click': {
+            case 'click':
+            case 'upload': {
               var point = stagePointFromViewport(cue.x, cue.y) || center;
               var travel = travelFor(point);
               holdLock(travel + (reduce ? 220 : 500));

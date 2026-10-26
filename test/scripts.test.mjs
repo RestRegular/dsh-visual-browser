@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import {
+  fileInputExpression,
   prepareTypingExpression,
   readTextExpression,
   resolveExpression,
   selectOptionExpression,
+  setNativeValueExpression,
   snapshotExpression,
 } from '../lib/page-scripts.js';
 
@@ -19,6 +21,9 @@ function makeElement(options = {}) {
     tagName: String(options.tag || 'div').toUpperCase(),
     type: options.type,
     value: options.value,
+    min: options.min,
+    max: options.max,
+    step: options.step,
     checked: options.checked,
     disabled: options.disabled,
     readOnly: false,
@@ -59,7 +64,9 @@ function makeElement(options = {}) {
       document.activeElement = element;
     },
     setSelectionRange() {},
-    dispatchEvent() {
+    dispatched: [],
+    dispatchEvent(event) {
+      element.dispatched.push(event.type);
       return true;
     },
   };
@@ -84,6 +91,35 @@ const link = makeElement({ tag: 'a', text: '忘记密码', attrs: { href: '/forg
 const heading = { tagName: 'H1', innerText: '用户登录', textContent: '用户登录' };
 const elements = [phone, password, submit, hiddenButton, checkbox, select, link];
 
+// Native pickers live outside the numbered view on purpose (their popup is a
+// browser widget, not page content), so they resolve by selector only.
+const fileInput = makeElement({ tag: 'input', type: 'file', attrs: { type: 'file' } });
+const dateInput = makeElement({ tag: 'input', type: 'date', attrs: { type: 'date' }, value: '' });
+const timeInput = makeElement({ tag: 'input', type: 'time', attrs: { type: 'time' }, value: '' });
+const monthInput = makeElement({ tag: 'input', type: 'month', attrs: { type: 'month' }, value: '' });
+const weekInput = makeElement({ tag: 'input', type: 'week', attrs: { type: 'week' }, value: '' });
+const localInput = makeElement({ tag: 'input', type: 'datetime-local', attrs: { type: 'datetime-local' }, value: '' });
+const colorInput = makeElement({ tag: 'input', type: 'color', attrs: { type: 'color' }, value: '' });
+const rangeInput = makeElement({
+  tag: 'input',
+  type: 'range',
+  attrs: { type: 'range' },
+  value: '0',
+  min: '0',
+  max: '10',
+  step: '2',
+});
+const bySelector = new Map([
+  ['#file', fileInput],
+  ['#date', dateInput],
+  ['#time', timeInput],
+  ['#month', monthInput],
+  ['#week', weekInput],
+  ['#local', localInput],
+  ['#color', colorInput],
+  ['#range', rangeInput],
+]);
+
 const document = {
   title: '登录 - Demo',
   readyState: 'complete',
@@ -94,9 +130,11 @@ const document = {
     if (selector === '[data-dsh-vb-ref]') return elements.filter((element) => element.hasAttribute('data-dsh-vb-ref'));
     if (selector === 'h1,h2,h3') return [heading];
     if (selector === 'iframe') return [];
+    if (selector.includes('input[type="file"]')) return [fileInput];
     return elements;
   },
   querySelector(selector) {
+    if (bySelector.has(selector)) return bySelector.get(selector);
     const match = /^\[data-dsh-vb-ref="(\d+)"\]$/.exec(selector);
     if (match) return elements.find((element) => element.getAttribute('data-dsh-vb-ref') === match[1]) || null;
     return null;
@@ -121,6 +159,13 @@ const window = {
 
 const location = { href: 'https://demo.test/login' };
 
+class FakeEvent {
+  constructor(type, init) {
+    this.type = type;
+    this.bubbles = Boolean(init && init.bubbles);
+  }
+}
+
 function run(expression, extra = {}) {
   const factory = new Function(
     'document',
@@ -131,7 +176,7 @@ function run(expression, extra = {}) {
     'Event',
     `return ${expression}`,
   );
-  return factory(document, window, location, { prototype: {} }, { prototype: {} }, function Event() {}, ...(extra.args || []));
+  return factory(document, window, location, { prototype: {} }, { prototype: {} }, FakeEvent, ...(extra.args || []));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,5 +257,44 @@ assert.equal(linkText.href, '/forgot');
 
 const missing = run(readTextExpression({ ref: 42 }));
 assert.deepEqual(missing, { ok: false, reason: 'stale-ref' });
+
+// ---------------------------------------------------------------------------
+// native pickers: written as values, normalised to what the browser accepts
+// ---------------------------------------------------------------------------
+
+const dateSet = run(setNativeValueExpression({ selector: '#date', value: '2026/10/6' }));
+assert.equal(dateSet.ok, true);
+assert.equal(dateSet.type, 'date');
+assert.equal(dateSet.value, '2026-10-06');
+assert.equal(dateInput.value, '2026-10-06');
+assert.deepEqual(dateInput.dispatched, ['input', 'change'], 'frameworks see a real change');
+
+const impossible = run(setNativeValueExpression({ selector: '#date', value: '2026-13-45' }));
+assert.equal(impossible.ok, false);
+assert.equal(impossible.reason, 'bad-value');
+assert.equal(impossible.expected, 'YYYY-MM-DD');
+
+const timeSet = run(setNativeValueExpression({ selector: '#time', value: '8:05' }));
+assert.equal(timeSet.value, '08:05');
+const monthSet = run(setNativeValueExpression({ selector: '#month', value: '2026年10月' }));
+assert.equal(monthSet.value, '2026-10');
+const weekSet = run(setNativeValueExpression({ selector: '#week', value: '2026-43' }));
+assert.equal(weekSet.value, '2026-W43');
+const localSet = run(setNativeValueExpression({ selector: '#local', value: '2026-10-26 07:53' }));
+assert.equal(localSet.value, '2026-10-26T07:53');
+const colorSet = run(setNativeValueExpression({ selector: '#color', value: '#1a2' }));
+assert.equal(colorSet.value, '#11aa22');
+const rangeSet = run(setNativeValueExpression({ selector: '#range', value: '7' }));
+assert.equal(rangeSet.value, '8', 'the value snaps to the step');
+
+const notANative = run(setNativeValueExpression({ selector: '#missing', value: 'x' }));
+assert.equal(notANative.ok, false);
+assert.equal(notANative.reason, 'not-found');
+assert.equal(run(setNativeValueExpression({ selector: '#phone', value: 'x' })).reason, 'not-found');
+
+// The hidden file input is what an upload falls back to.
+assert.equal(run(fileInputExpression({})), fileInput);
+assert.equal(run(fileInputExpression({ selector: '#date' })), fileInput, 'a page with a doomed selector still finds the input');
+assert.equal(run(fileInputExpression({ selector: '#file' })), fileInput);
 
 console.log('scripts.test.mjs ok');
