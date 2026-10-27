@@ -2155,7 +2155,10 @@
         );
 
         // The context menu is a light-dismiss layer: outside press, Escape,
-        // scroll, window resize or blur all close it.
+        // window resize or blur close it. Scroll is deliberately not a dismiss
+        // trigger: the console dock auto-scrolls as page output arrives and the
+        // tab strip scrolls the active chip into view, so a capture-phase scroll
+        // listener would close the menu while the pointer is merely moving.
         useEffect(
           function () {
             if (tabMenu === null) return undefined;
@@ -2176,13 +2179,11 @@
             window.addEventListener('keydown', onKeyDown, true);
             window.addEventListener('resize', onDismiss);
             window.addEventListener('blur', onDismiss);
-            document.addEventListener('scroll', onDismiss, true);
             return function () {
               window.removeEventListener('pointerdown', onPointerDown, true);
               window.removeEventListener('keydown', onKeyDown, true);
               window.removeEventListener('resize', onDismiss);
               window.removeEventListener('blur', onDismiss);
-              document.removeEventListener('scroll', onDismiss, true);
             };
           },
           [tabMenu],
@@ -2491,12 +2492,21 @@
           if (drag === null) return;
           var scrollDelta = drag.strip ? drag.strip.scrollLeft - drag.scrollAtStart : 0;
           var deltaX = clientX - drag.startClientX + scrollDelta;
-          var center = drag.startLeft + (clientX - drag.startClientX) + drag.width / 2;
-          var overIndex = 0;
-          drag.order.forEach(function (id) {
+          // Chrome's tab-strip rule: the lifted tab's leading edge decides for
+          // tabs behind it and its trailing edge decides for tabs ahead of it,
+          // each against that tab's centre — never the lifted tab's own centre.
+          // That makes the hand-off happen exactly when the lifted chip touches
+          // the neighbour's middle, instead of halfway through a wide tab.
+          var left = drag.startLeft + (clientX - drag.startClientX);
+          var right = left + drag.width;
+          var overIndex = drag.fromIndex;
+          drag.order.forEach(function (id, index) {
             if (id === drag.id) return;
             var rect = drag.rects.get(id);
-            if (rect && center > rect.left + rect.width / 2 - scrollDelta) overIndex += 1;
+            if (!rect) return;
+            var center = rect.left + rect.width / 2 - scrollDelta;
+            if (index > drag.fromIndex && right > center) overIndex += 1;
+            else if (index < drag.fromIndex && left < center) overIndex -= 1;
           });
           drag.deltaX = deltaX;
           drag.lastClientX = clientX;
