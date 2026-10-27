@@ -81,6 +81,11 @@ assert.ok(client.includes("className: 'dvb-tab'") && client.includes('data-dragg
 assert.ok(client.includes('The click target is the whole rounded chip'), 'the whole tab chip is the selection hit area');
 assert.ok(client.includes('suppressClickRef.current') && client.includes("action: 'select', id: page.id"), 'a settled drag suppresses the chip click');
 assert.ok(client.includes('onContextMenu') && client.includes('tab.reference'), 'tabs have a right-click menu with reference');
+assert.ok(client.includes("'tab.copyLink'") && client.includes("'tab.openExternal'"), 'the tab menu copies the link and opens the default browser');
+assert.ok(client.includes("action: 'copy-link'") && client.includes("action: 'open-external'"), 'both new rows reach a handler');
+assert.ok(client.includes('navigator.clipboard') && client.includes("execCommand('copy')"), 'the link copies with a fallback for the Electron shell');
+assert.match(await readFile(join(root, 'lib/routes.js'), 'utf8'), /openInDefaultBrowser/, 'the host hands the URL to the OS default browser');
+assert.ok(!client.includes('window.open('), 'opening the user browser never reuses the DSH window');
 assert.ok(client.includes('insertComposerText'), 'a tab can be referenced into the chat composer');
 assert.ok(client.includes("LOG_OPEN_KEY = 'dsh.visual-browser.log-open.v1'"), 'the console fold is remembered per browser');
 assert.ok(client.includes('useState(readStoredLogOpen)'), 'the console starts folded until the user opens it');

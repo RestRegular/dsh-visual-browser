@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Visual Browser",
-    "description": "One extra door under the right Sidebar's built-in Browser: a live picture of the Chrome the Agent drives. A permanent tab strip reorders by drag (lifted, frosted glass, other tabs move out of the way) and a right-click menu refreshes, references a page in the chat, closes one tab or all of them; clicks, drags, wheel and the keyboard go straight to the page, and the cursor is drawn at the picture's scale. The bottom dock is the active page's own console: its console output streams in, and you can run your own scripts there and see the returned value or error. While the Agent works, a tinted lock veil covers the picture and its clicks, scrolls and drags are drawn as ripple, arrows and a grabbing hand."
+    "description": "One extra door under the right Sidebar's built-in Browser: a live picture of the Chrome the Agent drives. A permanent tab strip reorders by drag (lifted, frosted glass, other tabs move out of the way) and a right-click menu refreshes, copies the link, opens it in your own default browser, references a page in the chat, closes one tab or all of them; clicks, drags, wheel and the keyboard go straight to the page, and the cursor is drawn at the picture's scale. The bottom dock is the active page's own console: its console output streams in, and you can run your own scripts there and see the returned value or error. While the Agent works, a tinted lock veil covers the picture and its clicks, scrolls and drags are drawn as ripple, arrows and a grabbing hand."
   }
 }

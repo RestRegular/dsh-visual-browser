@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { BrowserError } from '../lib/browser.js';
-import { handle } from '../lib/routes.js';
+import { handle, openInDefaultBrowser } from '../lib/routes.js';
 
 const PREFIX = '/visual-browser/api';
 
@@ -142,9 +142,9 @@ function makeManager({ running = true } = {}) {
   return manager;
 }
 
-async function request(manager, method, path, body) {
+async function request(manager, method, path, body, options) {
   const res = makeRes();
-  await handle(manager, PREFIX, makeReq(method, PREFIX + path, body), res);
+  await handle(manager, PREFIX, makeReq(method, PREFIX + path, body), res, options);
   return res;
 }
 
@@ -369,6 +369,78 @@ async function request(manager, method, path, body) {
   const offline = await request(manager, 'POST', '/nav', { action: 'reload' });
   assert.equal(offline.statusCode, 500);
   assert.equal(offline.json.error.code, 'NOT_RUNNING');
+}
+
+// /external hands one http(s) URL to the OS default browser
+{
+  const manager = makeManager();
+  const opened = [];
+  const res = await request(
+    manager,
+    'POST',
+    '/external',
+    { url: 'https://example.test/a?b=1&c=2' },
+    {
+      openExternal: async (url) => {
+        opened.push(url);
+      },
+    },
+  );
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.json.ok, true);
+  assert.deepEqual(opened, ['https://example.test/a?b=1&c=2']);
+  assert.equal(manager.calls.error, undefined, 'opening the user browser is not a browser failure');
+
+  // Anything that is not an absolute http(s) URL never reaches an opener.
+  for (const body of [{}, { url: '' }, { url: 'about:blank' }, { url: 'ftp://example.test/x' }, { url: 'not a url' }]) {
+    const rejected = await request(manager, 'POST', '/external', body);
+    assert.equal(rejected.statusCode, 400, `${JSON.stringify(body)} is refused`);
+    assert.equal(rejected.json.error.code, 'BAD_URL');
+  }
+}
+
+// The opener is one argv per platform, never a shell string
+{
+  const url = 'https://example.test/a?b=1&c=2';
+  const cases = [
+    ['win32', 'rundll32.exe', ['url.dll,FileProtocolHandler', url]],
+    ['darwin', 'open', [url]],
+    ['linux', 'xdg-open', [url]],
+  ];
+  for (const [platform, command, args] of cases) {
+    const calls = [];
+    const fakeSpawn = (cmd, argv, opts) => {
+      calls.push({ cmd, argv, opts });
+      return {
+        unref() {},
+        once(event, callback) {
+          if (event === 'spawn') queueMicrotask(() => callback());
+          return this;
+        },
+      };
+    };
+    await openInDefaultBrowser(url, { platform, spawn: fakeSpawn });
+    assert.equal(calls.length, 1, `${platform} spawns once`);
+    assert.equal(calls[0].cmd, command);
+    assert.deepEqual(calls[0].argv, args, `${platform} passes the URL as one argument`);
+    assert.equal(calls[0].opts.stdio, 'ignore');
+    assert.equal(calls[0].opts.detached, true);
+  }
+
+  // A missing opener surfaces as a failure the panel can toast.
+  await assert.rejects(
+    openInDefaultBrowser(url, {
+      platform: 'linux',
+      spawn: () => ({
+        unref() {},
+        once(event, callback) {
+          if (event === 'error') queueMicrotask(() => callback(new Error('ENOENT')));
+          return this;
+        },
+      }),
+    }),
+    /ENOENT/,
+  );
 }
 
 console.log('routes.test.mjs ok');

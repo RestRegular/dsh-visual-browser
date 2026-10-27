@@ -52,10 +52,16 @@
       'tab.close': '关闭这个页面',
       'tab.closeAll': '关闭全部标签页',
       'tab.reference': '引用到对话框',
+      'tab.copyLink': '复制链接',
+      'tab.openExternal': '在默认浏览器中打开',
       'tab.strip': '浏览器标签页',
       'tab.untitled': '新页面',
       'toast.referenced': '已引用到对话框',
       'toast.noComposer': '没有找到对话框，请先打开一个会话',
+      'toast.copied': '已复制链接',
+      'toast.copyFailed': '复制失败，请手动复制',
+      'toast.externalOpened': '已在默认浏览器中打开',
+      'toast.externalFailed': '没能唤起默认浏览器',
       'url.placeholder': '输入网址，例如 example.com',
       'hint.interactive': '直接用鼠标操作画面；点一下画面后可用键盘输入',
       'hint.headless': '无头浏览器：窗口不可见，画面只在这里',
@@ -135,10 +141,16 @@
       'tab.close': 'Close this page',
       'tab.closeAll': 'Close all tabs',
       'tab.reference': 'Reference in the chat',
+      'tab.copyLink': 'Copy link',
+      'tab.openExternal': 'Open in default browser',
       'tab.strip': 'Browser tabs',
       'tab.untitled': 'New page',
       'toast.referenced': 'Referenced in the chat',
       'toast.noComposer': 'No chat composer found. Open a conversation first.',
+      'toast.copied': 'Link copied',
+      'toast.copyFailed': 'Could not copy the link',
+      'toast.externalOpened': 'Opened in the default browser',
+      'toast.externalFailed': 'Could not open the default browser',
       'url.placeholder': 'Enter a URL, for example example.com',
       'hint.interactive': 'Click straight into the picture; click once to type with the keyboard',
       'hint.headless': 'Headless browser: no window to watch, the picture here is the browser',
@@ -708,6 +720,17 @@
             return svg({ size: size || 14 }, [
               h('path', { key: 'a', d: 'M10.2 13.8a4.1 4.1 0 0 0 5.8 0l2.4-2.4a4.1 4.1 0 0 0-5.8-5.8l-1.2 1.2' }),
               h('path', { key: 'b', d: 'M13.8 10.2a4.1 4.1 0 0 0-5.8 0l-2.4 2.4a4.1 4.1 0 0 0 5.8 5.8l1.2-1.2' }),
+            ]);
+          case 'copy':
+            return svg({ size: size || 14 }, [
+              h('rect', { key: 'a', x: 9, y: 9, width: 10.5, height: 10.5, rx: 2.2 }),
+              h('path', { key: 'b', d: 'M14.8 9V6.6A1.6 1.6 0 0 0 13.2 5H6.6A1.6 1.6 0 0 0 5 6.6v6.6a1.6 1.6 0 0 0 1.6 1.6H9' }),
+            ]);
+          case 'external':
+            return svg({ size: size || 14 }, [
+              h('path', { key: 'a', d: 'M13.5 5H19v5.5' }),
+              h('path', { key: 'b', d: 'M19 5l-7.6 7.6' }),
+              h('path', { key: 'c', d: 'M18.2 14.2v3.3a1.9 1.9 0 0 1-1.9 1.9H6.7a1.9 1.9 0 0 1-1.9-1.9V7.9A1.9 1.9 0 0 1 6.7 6h3.3' }),
             ]);
           case 'globe':
             return svg({ size: size || 24, strokeWidth: 1.6 }, [
@@ -2600,6 +2623,84 @@
           showToast(insertComposerPageReference(ctx, page) ? t('toast.referenced') : t('toast.noComposer'));
         };
 
+        /**
+         * A page the browser never navigated anywhere (`about:blank`, or a tab
+         * Chrome has not resolved yet) has no link to copy and nothing to hand
+         * to another browser, so both menu rows stay off for it.
+         */
+        var pageLink = function (page) {
+          var url = page === null || page === undefined ? '' : page.url;
+          if (typeof url !== 'string') return '';
+          var trimmed = url.trim();
+          return /^https?:\/\//i.test(trimmed) ? trimmed : '';
+        };
+
+        /**
+         * Copy without depending on one clipboard API: the panel lives on
+         * dsh-app:// inside Electron, where `navigator.clipboard` can refuse a
+         * write even from a click, while the old `execCommand('copy')` path
+         * still runs inside the gesture. Try the modern one, fall back once.
+         */
+        var copyText = function (text) {
+          var legacyCopy = function () {
+            var area = document.createElement('textarea');
+            area.value = text;
+            area.setAttribute('readonly', '');
+            area.style.position = 'fixed';
+            area.style.top = '-1000px';
+            area.style.opacity = '0';
+            document.body.appendChild(area);
+            var copied = false;
+            try {
+              area.select();
+              copied = document.execCommand('copy');
+            } catch {
+              copied = false;
+            }
+            document.body.removeChild(area);
+            return copied;
+          };
+          var clipboard = navigator.clipboard;
+          if (clipboard !== null && clipboard !== undefined && typeof clipboard.writeText === 'function') {
+            return clipboard.writeText(text).then(
+              function () {
+                return true;
+              },
+              function () {
+                return legacyCopy();
+              },
+            );
+          }
+          return Promise.resolve(legacyCopy());
+        };
+
+        var copyPageLink = function (page) {
+          var link = pageLink(page);
+          if (link === '') return;
+          void copyText(link).then(function (copied) {
+            showToast(copied ? t('toast.copied') : t('toast.copyFailed'));
+          });
+        };
+
+        /**
+         * Your own browser is not this Chrome: the host hands the URL to the
+         * operating system's default handler (`/external`), which needs no
+         * window from the panel and works the same in the desktop shell and in
+         * a plain web page.
+         */
+        var openPageExternal = function (page) {
+          var link = pageLink(page);
+          if (link === '') return;
+          requestJson('/external', { method: 'POST', body: { url: link } }).then(
+            function () {
+              showToast(t('toast.externalOpened'));
+            },
+            function () {
+              showToast(t('toast.externalFailed'));
+            },
+          );
+        };
+
         var holdOrder = function (ids) {
           setTabOrder(ids);
           if (orderTimerRef.current !== 0) window.clearTimeout(orderTimerRef.current);
@@ -2810,6 +2911,8 @@
           closeTabMenu();
           if (page === null) return;
           if (action === 'reload') void postPage({ action: 'reload', id: page.id });
+          else if (action === 'copy-link') copyPageLink(page);
+          else if (action === 'open-external') openPageExternal(page);
           else if (action === 'reference') referencePage(page);
           else if (action === 'close') void postPage({ action: 'close', id: page.id });
           else if (action === 'close-all') void postPage({ action: 'close-all' });
@@ -3442,6 +3545,22 @@
                     glyph: 'reload',
                     action: 'reload',
                     disabled: !state.running || locked,
+                  }),
+                  // Both rows need a real http(s) link: a page Chrome never
+                  // navigated has nothing to copy and nothing to hand over.
+                  menuItem({
+                    key: 'copy-link',
+                    label: t('tab.copyLink'),
+                    glyph: 'copy',
+                    action: 'copy-link',
+                    disabled: pageLink(menuPage) === '',
+                  }),
+                  menuItem({
+                    key: 'open-external',
+                    label: t('tab.openExternal'),
+                    glyph: 'external',
+                    action: 'open-external',
+                    disabled: pageLink(menuPage) === '',
                   }),
                   menuItem({ key: 'reference', label: t('tab.reference'), glyph: 'link', action: 'reference' }),
                   menuItem({
