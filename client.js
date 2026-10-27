@@ -2,12 +2,12 @@
  * Client half of dsh-visual-browser.
  *
  * A tab type for the right Sidebar: a live picture of the page Chrome is
- * showing, a guide card under the built-in Browser entry that opens it, and a
- * collapsible operation log. Pictures arrive as one long MJPEG response that the
- * <img> element decodes natively; pointer, wheel and keyboard events go out in
- * animation-frame batches, so a click costs one round trip instead of a
- * screenshot. The whole file is an IIFE because every client bundle shares one
- * global lexical scope inside the page.
+ * showing, Chrome-style page tabs, and a page console where scripts can be run.
+ * Pictures arrive as one long binary response of length-prefixed JPEG frames
+ * that the panel decodes off the main thread; pointer, wheel and keyboard
+ * events go out in animation-frame batches, so a click costs one round trip
+ * instead of a screenshot. The whole file is an IIFE because every client bundle
+ * shares one global lexical scope inside the page.
  */
 (function () {
   'use strict';
@@ -44,21 +44,35 @@
       'action.reconnect': '重新连接画面',
       'tab.new': '新建页面',
       'tab.close': '关闭这个页面',
+      'tab.closeAll': '关闭全部标签页',
+      'tab.reference': '引用到对话框',
+      'tab.strip': '浏览器标签页',
       'tab.untitled': '新页面',
+      'toast.referenced': '已引用到对话框',
+      'toast.noComposer': '没有找到对话框，请先打开一个会话',
       'url.placeholder': '输入网址，例如 example.com',
       'hint.interactive': '直接用鼠标操作画面；点一下画面后可用键盘输入',
       'hint.headless': '无头浏览器：窗口不可见，画面只在这里',
       'empty.title': '浏览器还没启动',
       'empty.desc': '在上方输入网址打开，或者让 Agent 用 browser_open 打开一个页面；之后每次操作都会在这里实时显示。',
       'connecting': '正在连接画面…',
-      'timeline.title': '操作记录',
-      'timeline.empty': '还没有操作。Agent 的点击、输入与你自己的操作都会记录在这里。',
-      'timeline.count': '条',
-      'timeline.expand': '展开操作记录',
-      'timeline.resize': '上下拖动调整操作记录高度，双击复位',
-      'timeline.collapse': '折叠操作记录',
-      'timeline.clear': '清空',
-      'timeline.clearTitle': '清空操作记录',
+      'console.title': '页面 Console',
+      'console.empty': '页面还没有输出。在下面输入脚本按 Enter 运行，网页自身的 console 输出也会实时显示在这里。',
+      'console.resize': '上下拖动调整控制台高度，双击复位',
+      'console.collapse': '折叠控制台',
+      'console.expand': '展开控制台',
+      'console.clear': '清空控制台',
+      'console.clearTitle': '清空控制台',
+      'console.placeholder': '输入脚本，Enter 运行（Shift+Enter 换行）',
+      'console.run': '运行',
+      'console.count': '条',
+      'console.log': '日志',
+      'console.info': '信息',
+      'console.debug': '调试',
+      'console.warn': '警告',
+      'console.error': '错误',
+      'console.input': '脚本',
+      'console.result': '返回',
       'agent.working': 'Agent 正在操作画面',
       'agent.hint': '画面已锁定',
       'agent.typing': '输入文字',
@@ -113,21 +127,35 @@
       'action.reconnect': 'Reconnect the picture',
       'tab.new': 'New page',
       'tab.close': 'Close this page',
+      'tab.closeAll': 'Close all tabs',
+      'tab.reference': 'Reference in the chat',
+      'tab.strip': 'Browser tabs',
       'tab.untitled': 'New page',
+      'toast.referenced': 'Referenced in the chat',
+      'toast.noComposer': 'No chat composer found. Open a conversation first.',
       'url.placeholder': 'Enter a URL, for example example.com',
       'hint.interactive': 'Click straight into the picture; click once to type with the keyboard',
       'hint.headless': 'Headless browser: no window to watch, the picture here is the browser',
       'empty.title': 'The browser is not running yet',
       'empty.desc': 'Open a URL above, or let the Agent call browser_open. Everything that happens then shows up here live.',
       'connecting': 'Connecting the picture…',
-      'timeline.title': 'Actions',
-      'timeline.empty': 'No actions yet. Agent clicks, typing, and your own gestures are listed here.',
-      'timeline.count': 'items',
-      'timeline.expand': 'Expand the action log',
-      'timeline.resize': 'Drag up or down to resize the action log; double-click to reset',
-      'timeline.collapse': 'Collapse the action log',
-      'timeline.clear': 'Clear',
-      'timeline.clearTitle': 'Clear the action log',
+      'console.title': 'Page Console',
+      'console.empty': 'No page output yet. Run a script below with Enter; the page’s own console output shows up here live.',
+      'console.resize': 'Drag up or down to resize the console; double-click to reset',
+      'console.collapse': 'Collapse the console',
+      'console.expand': 'Expand the console',
+      'console.clear': 'Clear the console',
+      'console.clearTitle': 'Clear the console',
+      'console.placeholder': 'Run a script — Enter runs, Shift+Enter adds a line',
+      'console.run': 'Run',
+      'console.count': 'items',
+      'console.log': 'log',
+      'console.info': 'info',
+      'console.debug': 'debug',
+      'console.warn': 'warn',
+      'console.error': 'error',
+      'console.input': 'script',
+      'console.result': 'result',
       'agent.working': 'Agent is driving the page',
       'agent.hint': 'the picture is locked',
       'agent.typing': 'typing text',
@@ -167,7 +195,7 @@
 
   var CSS = [
     // ---- tab body -------------------------------------------------------
-    '.dvb-root{display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}',
+    '.dvb-root{position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}',
     '.dvb-bar{flex:none;display:flex;align-items:center;gap:6px;padding:8px 10px 6px;min-width:0}',
     '.dvb-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--dsw-alias-state-idle-primary,var(--dsw-alias-border-l3))}',
     '.dvb-dot[data-on="true"]{background:var(--dsw-alias-state-success-primary)}',
@@ -181,12 +209,32 @@
     '.dvb-btn:disabled{opacity:.4;cursor:default}',
     '.dvb-btn[data-variant="primary"]{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);padding:0 10px}',
     '.dvb-btn[data-variant="primary"]:hover:not(:disabled){background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);filter:brightness(1.06)}',
-    '.dvb-tabs{flex:none;display:flex;gap:4px;padding:2px 8px 6px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin}',
-    '.dvb-tab{flex:none;display:flex;align-items:center;gap:2px;height:24px;padding:0 3px 0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:7px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0}',
-    '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
+    '.dvb-tabs{position:relative;flex:none;display:flex;align-items:center;gap:4px;margin:-4px 0 -4px;padding:6px 8px 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overflow-anchor:none}',
+    '.dvb-tab{position:relative;flex:none;display:flex;align-items:center;gap:2px;height:26px;padding:0 3px 0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0;transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .17s cubic-bezier(.2,0,0,1);touch-action:none;user-select:none;-webkit-user-select:none}',
+    '.dvb-tab:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
+    '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));border-color:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary)}',
+    '.dvb-tab[data-dragging="true"]{z-index:30;cursor:grabbing;background:color-mix(in srgb,var(--dsw-alias-bg-base) 58%,transparent);border-color:var(--dsw-alias-border-l3);box-shadow:0 4px 10px rgba(0,0,0,.24),0 1px 3px rgba(0,0,0,.16);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);transition:none!important;will-change:transform}',
+    '.dvb-tab[data-dragging="true"]:hover{background:color-mix(in srgb,var(--dsw-alias-bg-base) 58%,transparent)}',
     '.dvb-tab-label{display:block;max-width:140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0}',
-    '.dvb-tab-close{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0}',
+    '.dvb-tab[data-dragging="true"] .dvb-tab-label{cursor:grabbing}',
+    '.dvb-tab-close{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0;opacity:0;transition:opacity .1s ease,background .1s ease,color .1s ease}',
+    '.dvb-tab:hover .dvb-tab-close,.dvb-tab[data-current="true"] .dvb-tab-close,.dvb-tab-close:focus-visible{opacity:1}',
     '.dvb-tab-close:hover{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));color:var(--dsw-alias-label-primary)}',
+    '.dvb-tab-add{flex:none;display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;padding:0;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease}',
+    '.dvb-tab-add:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
+    '.dvb-tab-add:disabled{opacity:.4;cursor:default}',
+    '.dvb-menu{position:fixed;z-index:2147483000;min-width:184px;max-width:260px;padding:5px;border:1px solid var(--dsw-alias-border-l2);border-radius:10px;background:var(--dsw-specific-menu,var(--dsw-alias-bg-overlay));color:var(--dsw-alias-label-primary);box-shadow:0 12px 32px rgba(0,0,0,.26);backdrop-filter:var(--dsw-menu-backdrop-filter,blur(18px) saturate(160%));-webkit-backdrop-filter:var(--dsw-menu-backdrop-filter,blur(18px) saturate(160%));font-size:12px;animation:dvb-menu-in .12s ease-out}',
+    '@keyframes dvb-menu-in{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}',
+    '.dvb-menu-item{display:flex;align-items:center;gap:8px;width:100%;height:30px;padding:0 8px;border:0;border-radius:7px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer;white-space:nowrap}',
+    '.dvb-menu-item:hover:not(:disabled),.dvb-menu-item:focus-visible{background:var(--dsw-alias-interactive-bg-hover);outline:none}',
+    '.dvb-menu-item:disabled{opacity:.4;cursor:default}',
+    '.dvb-menu-item[data-danger="true"]{color:var(--dsw-alias-state-error-primary)}',
+    '.dvb-menu-item[data-danger="true"]:hover:not(:disabled){background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 12%,transparent)}',
+    '.dvb-menu-glyph{display:inline-flex;flex:none;color:var(--dsw-alias-label-secondary)}',
+    '.dvb-menu-item[data-danger="true"] .dvb-menu-glyph{color:inherit}',
+    '.dvb-menu-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l3)}',
+    '.dvb-toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:70;max-width:calc(100% - 24px);padding:6px 12px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font-size:11.5px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none;animation:dvb-toast-in .16s ease-out}',
+    '@keyframes dvb-toast-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}',
     '.dvb-addr{flex:none;display:flex;align-items:center;gap:6px;padding:0 10px 8px;min-width:0}',
     '.dvb-input{flex:1 1 auto;min-width:0;height:28px;padding:0 9px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}',
     '.dvb-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
@@ -230,8 +278,7 @@
     '.dvb-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:20px 24px;color:var(--dsw-alias-label-secondary)}',
     '.dvb-empty-title{font-size:13.5px;font-weight:600;color:var(--dsw-alias-label-primary)}',
     '.dvb-empty-desc{max-width:340px;font-size:12px}',
-    '.dvb-hint{padding:5px 10px 7px;font-size:11px;color:var(--dsw-alias-label-tertiary);display:flex;gap:8px;flex-wrap:wrap;flex:none}',
-    // ---- log ------------------------------------------------------------
+    // ---- console --------------------------------------------------------
     '.dvb-log{flex:0 0 auto;display:flex;flex-direction:column;min-height:0;background:var(--dsw-alias-bg-base)}',
     '.dvb-log-head-wrap{position:relative;flex:none;min-width:0}',
     '.dvb-log-head{display:flex;align-items:center;gap:6px;width:100%;padding:7px 44px 7px 10px;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:12px;text-align:left;cursor:pointer}',
@@ -242,20 +289,33 @@
     '.dvb-log[data-open="true"] .dvb-log-chevron{transform:rotate(90deg)}',
     '.dvb-log-title{font-weight:600;color:var(--dsw-alias-label-secondary)}',
     '.dvb-log-count{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary)}',
-    '.dvb-log-body{overflow-y:auto;overscroll-behavior:contain;max-height:min(44vh,320px);min-height:0;padding:0 6px 8px;display:flex;flex-direction:column;gap:1px}',
-'.dvb-log[data-sized="true"] .dvb-log-body{max-height:none;height:var(--dvb-log-h,200px)}',
-'.dvb-split{flex:none;display:flex;align-items:center;justify-content:center;height:11px;margin:-1px 0;padding:0;border:0;background:transparent;cursor:ns-resize;touch-action:none}',
-'.dvb-split::before{content:"";width:36px;height:3px;border-radius:2px;background:var(--dsw-alias-border-l2);transition:background .12s ease}',
-'.dvb-split:hover::before,.dvb-split[data-active="true"]::before{background:var(--dsw-alias-brand-primary)}',
-'.dvb-split:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-3px;border-radius:6px}',
-    '.dvb-log-empty{padding:3px 6px 10px;font-size:11.5px;color:var(--dsw-alias-label-tertiary)}',
-    '.dvb-row{display:flex;align-items:baseline;gap:6px;padding:4px 6px;border-radius:6px;font-size:12px;min-width:0}',
-    '.dvb-row:hover{background:var(--dsw-alias-interactive-bg-hover)}',
-    '.dvb-row-time{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary);flex:none;width:52px;font-size:11px}',
-    '.dvb-row-kind{flex:none;padding:0 5px;border-radius:4px;border:.5px solid var(--dsw-alias-border-l1);background:transparent;color:var(--dsw-alias-label-secondary);font-size:10.5px;line-height:1.6;white-space:nowrap}',
-    '.dvb-row-kind[data-kind^="user"]{border-color:transparent;background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff)}',
-    '.dvb-row-text{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-secondary)}',
-    '.dvb-row-text[data-error="true"]{color:var(--dsw-alias-state-error-primary)}',
+    '.dvb-log-body{overflow-y:auto;overscroll-behavior:contain;max-height:min(44vh,320px);min-height:0;padding:2px 6px 0;display:flex;flex-direction:column;gap:1px;scrollbar-width:thin}',
+    '.dvb-log[data-sized="true"] .dvb-log-body{max-height:none;height:var(--dvb-log-h,200px)}',
+    '.dvb-split{flex:none;display:flex;align-items:center;justify-content:center;height:11px;margin:-1px 0;padding:0;border:0;background:transparent;cursor:ns-resize;touch-action:none}',
+    '.dvb-split::before{content:"";width:36px;height:3px;border-radius:2px;background:var(--dsw-alias-border-l2);transition:background .12s ease}',
+    '.dvb-split:hover::before,.dvb-split[data-active="true"]::before{background:var(--dsw-alias-brand-primary)}',
+    '.dvb-split:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-3px;border-radius:6px}',
+    '.dvb-log-empty{padding:5px 6px 10px;font-size:11.5px;line-height:1.55;color:var(--dsw-alias-label-tertiary)}',
+    '.dvb-console-row{display:grid;grid-template-columns:52px 42px minmax(0,1fr);align-items:start;gap:6px;padding:3px 6px;border-radius:6px;font:11.5px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace;min-width:0}',
+    '.dvb-console-row:hover{background:var(--dsw-alias-interactive-bg-hover)}',
+    '.dvb-console-time{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.65;white-space:nowrap}',
+    '.dvb-console-level{flex:none;padding:0 4px;border-radius:4px;border:.5px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);font-size:10px;line-height:1.75;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '.dvb-console-text{min-width:0;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--dsw-alias-label-secondary)}',
+    '.dvb-console-row[data-level="input"]{background:color-mix(in srgb,var(--dsw-alias-brand-primary) 7%,transparent)}',
+    '.dvb-console-row[data-level="input"] .dvb-console-text{color:var(--dsw-alias-label-primary)}',
+    '.dvb-console-row[data-level="input"] .dvb-console-text::before{content:"> "}',
+    '.dvb-console-row[data-level="result"] .dvb-console-text{color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}',
+    '.dvb-console-row[data-level="warn"] .dvb-console-text,.dvb-console-row[data-level="warn"] .dvb-console-level{color:var(--dsw-alias-state-warning-primary,var(--dsw-alias-label-primary))}',
+    '.dvb-console-row[data-level="error"] .dvb-console-text{color:var(--dsw-alias-state-error-primary)}',
+    '.dvb-console-row[data-level="error"] .dvb-console-level{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,transparent)}',
+    '.dvb-console-input-row{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:6px;margin:2px -6px 0;padding:6px 8px;border-top:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base)}',
+    '.dvb-console-prompt{flex:none;color:var(--dsw-alias-label-tertiary);font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,monospace}',
+    '.dvb-console-input{flex:1 1 auto;min-width:0;height:26px;padding:0 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:6px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:11.5px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace}',
+    '.dvb-console-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
+    '.dvb-console-input:focus{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-1px}',
+    '.dvb-console-run{flex:none;height:26px;padding:0 9px;border:1px solid var(--dsw-alias-border-l2);border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:inherit;font-size:11px;cursor:pointer}',
+    '.dvb-console-run:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}',
+    '.dvb-console-run:disabled{opacity:.4;cursor:default}',
     '.dvb-error{margin:0 10px 8px;padding:6px 9px;border-radius:7px;background:var(--dsw-alias-bg-layer-1);border:1px solid var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary);font-size:11.5px}',
     // ---- guide cards ----------------------------------------------------
     '.dvb-guide{display:flex;flex-direction:column;width:100%;box-sizing:border-box;border:.5px solid var(--dsw-alias-border-l3);border-radius:var(--dsw-radius-xl,16px);background:var(--dsw-alias-bg-layer-1);overflow:hidden}',
@@ -276,12 +336,14 @@
     id: MODULE_ID,
     factory(require) {
       var React = require('react');
+      var ReactDOM = require('react-dom');
       var h = React.createElement;
       var useState = React.useState;
       var useEffect = React.useEffect;
       var useRef = React.useRef;
       var useCallback = React.useCallback;
       var useMemo = React.useMemo;
+      var useLayoutEffect = React.useLayoutEffect;
 
       var translateCurrent = function (key) {
         var table = DICT.zh;
@@ -616,6 +678,16 @@
               h('path', { key: 'd', d: 'M10.2 10v6.4' }),
               h('path', { key: 'e', d: 'M13.8 10v6.4' }),
             ]);
+          case 'close':
+            return svg({ size: size || 14 }, [
+              h('path', { key: 'a', d: 'M6 6l12 12' }),
+              h('path', { key: 'b', d: 'M18 6L6 18' }),
+            ]);
+          case 'link':
+            return svg({ size: size || 14 }, [
+              h('path', { key: 'a', d: 'M10.2 13.8a4.1 4.1 0 0 0 5.8 0l2.4-2.4a4.1 4.1 0 0 0-5.8-5.8l-1.2 1.2' }),
+              h('path', { key: 'b', d: 'M13.8 10.2a4.1 4.1 0 0 0-5.8 0l-2.4 2.4a4.1 4.1 0 0 0 5.8 5.8l1.2-1.2' }),
+            ]);
           case 'globe':
             return svg({ size: size || 24, strokeWidth: 1.6 }, [
               h('circle', { key: 'a', cx: 12, cy: 12, r: 8.5 }),
@@ -749,12 +821,14 @@
       // -------------------------------------------------------------------
 
       /**
-       * Height of the resizable action log. The panel keeps the choice in
+       * Height of the resizable console dock. The panel keeps the choice in
        * localStorage so a chosen split survives reopening the tab.
        */
       var LOG_HEIGHT_KEY = 'dsh.visual-browser.log-height.v1';
       var LOG_MIN_HEIGHT = 96;
       var LOG_STAGE_RESERVE = 220;
+      /** Gap between tabs, mirrored from `.dvb-tabs{gap}` for drag math. */
+      var TAB_GAP = 4;
 
       function readStoredLogHeight() {
         try {
@@ -807,6 +881,80 @@
         return event.key;
       }
 
+      /**
+       * The live composer in the conversation panel. The panel is a right
+       * Sidebar tab, so the chat is a sibling surface in the same document; a
+       * hidden session keeps its composer mounted, which is why visibility is
+       * checked before the caret is taken.
+       */
+      function composerRoot() {
+        var nodes = document.querySelectorAll('[data-composer-input]');
+        for (var index = nodes.length - 1; index >= 0; index -= 1) {
+          var node = nodes[index];
+          if (!node || node.nodeType !== 1 || !node.isConnected) continue;
+          var rect = node.getBoundingClientRect();
+          if (rect.width < 2 || rect.height < 2) continue;
+          var style = window.getComputedStyle(node);
+          if (style.visibility === 'hidden' || style.display === 'none') continue;
+          return node;
+        }
+        return null;
+      }
+
+      function placeCaretAtEnd(root) {
+        var selection = typeof window.getSelection === 'function' ? window.getSelection() : null;
+        if (selection !== null && selection.rangeCount > 0 && root.contains(selection.anchorNode)) return;
+        var range = document.createRange();
+        range.selectNodeContents(root);
+        range.collapse(false);
+        if (selection !== null) {
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+      }
+
+      /**
+       * Put a tab reference into the chat composer, at the caret the user left
+       * there. The composer is a Lexical editor: `execCommand` goes through its
+       * before-input path, and a synthetic paste through the composer's own
+       * paste handling, so the draft, undo history and chip scanning all stay
+       * consistent. Nothing is ever submitted.
+       */
+      function insertComposerText(text) {
+        var root = composerRoot();
+        if (root === null) return false;
+        try {
+          root.focus({ preventScroll: true });
+        } catch {
+          root.focus();
+        }
+        placeCaretAtEnd(root);
+        try {
+          if (document.execCommand('insertText', false, text)) return true;
+        } catch {
+          /* fall through to the paste path */
+        }
+        try {
+          var transfer = new DataTransfer();
+          transfer.setData('text/plain', text);
+          var event = new ClipboardEvent('paste', { bubbles: true, cancelable: true });
+          try {
+            Object.defineProperty(event, 'clipboardData', { value: transfer });
+          } catch {
+            /* the constructor may already carry it */
+          }
+          return root.dispatchEvent(event) === false;
+        } catch {
+          return false;
+        }
+      }
+
+      function pageReferenceText(page, t) {
+        var url = page && typeof page.url === 'string' && page.url !== 'about:blank' ? page.url : '';
+        var label = page && page.title ? page.title : url !== '' ? shortUrl(url) : t('tab.untitled');
+        return url !== '' ? '[' + label + '](' + url + ')' : '[' + label + ']';
+      }
+
       function BrowserTab(props) {
         var ctx = props.ctx;
         var t = props.t || translateCurrent;
@@ -820,6 +968,8 @@
         var [logOpen, setLogOpen] = useState(true);
         var [logHeight, setLogHeight] = useState(readStoredLogHeight);
         var [resizing, setResizing] = useState(false);
+        var [consoleDraft, setConsoleDraft] = useState('');
+        var [consoleBusy, setConsoleBusy] = useState(false);
         var [live, setLive] = useState(false);
         var [streamRetry, setStreamRetry] = useState(0);
         var [retrying, setRetrying] = useState(false);
@@ -829,6 +979,13 @@
         // cue stream is unavailable and for operations that outlive an animation).
         var [agentBusy, setAgentBusy] = useState(false);
         var [agentLabel, setAgentLabel] = useState('');
+        // Tab-strip chrome: the right-click menu, the tab being dragged, a
+        // local move order that survives until the host state catches up, and
+        // the small confirmation pill.
+        var [tabMenu, setTabMenu] = useState(null);
+        var [tabDrag, setTabDrag] = useState(null);
+        var [tabOrder, setTabOrder] = useState(null);
+        var [toast, setToast] = useState('');
 
         var rootRef = useRef(null);
         var logRef = useRef(null);
@@ -838,6 +995,13 @@
         var addrRef = useRef(null);
         var stageRef = useRef(null);
         var canvasRef = useRef(null);
+        var menuRef = useRef(null);
+        var dragRef = useRef(null);
+        var flipRef = useRef(null);
+        var toastTimerRef = useRef(0);
+        var orderTimerRef = useRef(0);
+        var suppressClickRef = useRef(false);
+        var autoScrollRef = useRef({ frame: 0, dir: 0 });
         var liveRef = useRef(false);
         var lastFrameAtRef = useRef(0);
         var cursorRef = useRef(null);
@@ -1927,6 +2091,142 @@
           [state.activePageId],
         );
 
+        // Once the host reports the order a drop previewed, the local overlay
+        // has done its job; keeping it longer would mask a new tab or a close.
+        useEffect(
+          function () {
+            if (tabOrder === null) return;
+            var ids = (Array.isArray(state.pages) ? state.pages : []).map(function (page) {
+              return page.id;
+            });
+            if (ids.length !== tabOrder.length) return;
+            for (var index = 0; index < ids.length; index += 1) {
+              if (ids[index] !== tabOrder[index]) return;
+            }
+            setTabOrder(null);
+            if (orderTimerRef.current !== 0) {
+              window.clearTimeout(orderTimerRef.current);
+              orderTimerRef.current = 0;
+            }
+          },
+          [state.pages, tabOrder],
+        );
+
+        // Chrome-style drop: every tab starts from where it was visually before
+        // the order changed (the lifted tab included) and slides to its slot.
+        useLayoutEffect(
+          function () {
+            var flip = flipRef.current;
+            if (flip === null) return;
+            flipRef.current = null;
+            var strip = tabsRef.current;
+            if (!strip) return;
+            var nodes = strip.querySelectorAll('[data-tab-id]');
+            var moving = [];
+            for (var index = 0; index < nodes.length; index += 1) {
+              var node = nodes[index];
+              var before = flip.lefts.get(node.getAttribute('data-tab-id'));
+              if (before === undefined) continue;
+              var after = node.getBoundingClientRect().left;
+              var delta = before - after;
+              if (Math.abs(delta) < 0.5) continue;
+              node.style.transition = 'none';
+              node.style.transform = 'translateX(' + delta + 'px)';
+              moving.push(node);
+            }
+            if (moving.length === 0) return;
+            void strip.offsetWidth;
+            window.requestAnimationFrame(function () {
+              window.requestAnimationFrame(function () {
+                moving.forEach(function (node) {
+                  node.style.transition = 'transform 190ms cubic-bezier(.2,0,0,1)';
+                  node.style.transform = '';
+                });
+                window.setTimeout(function () {
+                  moving.forEach(function (node) {
+                    node.style.transition = '';
+                    node.style.transform = '';
+                  });
+                }, 240);
+              });
+            });
+          },
+          [tabOrder, tabDrag],
+        );
+
+        // The context menu is a light-dismiss layer: outside press, Escape,
+        // scroll, window resize or blur all close it.
+        useEffect(
+          function () {
+            if (tabMenu === null) return undefined;
+            var onPointerDown = function (event) {
+              if (menuRef.current !== null && menuRef.current.contains(event.target)) return;
+              setTabMenu(null);
+            };
+            var onKeyDown = function (event) {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              setTabMenu(null);
+            };
+            var onDismiss = function () {
+              setTabMenu(null);
+            };
+            window.addEventListener('pointerdown', onPointerDown, true);
+            window.addEventListener('keydown', onKeyDown, true);
+            window.addEventListener('resize', onDismiss);
+            window.addEventListener('blur', onDismiss);
+            document.addEventListener('scroll', onDismiss, true);
+            return function () {
+              window.removeEventListener('pointerdown', onPointerDown, true);
+              window.removeEventListener('keydown', onKeyDown, true);
+              window.removeEventListener('resize', onDismiss);
+              window.removeEventListener('blur', onDismiss);
+              document.removeEventListener('scroll', onDismiss, true);
+            };
+          },
+          [tabMenu],
+        );
+
+        useLayoutEffect(
+          function () {
+            if (tabMenu === null) return;
+            var menu = menuRef.current;
+            if (menu === null) return;
+            var rect = menu.getBoundingClientRect();
+            var left = Math.max(8, Math.min(tabMenu.x, window.innerWidth - rect.width - 8));
+            var top = Math.max(8, Math.min(tabMenu.y, window.innerHeight - rect.height - 8));
+            menu.style.left = Math.round(left) + 'px';
+            menu.style.top = Math.round(top) + 'px';
+          },
+          [tabMenu],
+        );
+
+        // One teardown for every strip timer/listener: a closed pane must not
+        // keep a drag listener or a toast timeout alive.
+        useEffect(
+          function () {
+            return function () {
+              detachDragListeners();
+              dragRef.current = null;
+              if (toastTimerRef.current !== 0) window.clearTimeout(toastTimerRef.current);
+              if (orderTimerRef.current !== 0) window.clearTimeout(orderTimerRef.current);
+            };
+          },
+          [],
+        );
+
+        // Follow the newest console line unless the user has scrolled up to
+        // read history; an eval answer or a page log then stays in view.
+        useEffect(
+          function () {
+            var body = logBodyRef.current;
+            if (!body) return;
+            var distance = body.scrollHeight - body.scrollTop - body.clientHeight;
+            if (distance < 80) body.scrollTop = body.scrollHeight;
+          },
+          [state.console, logOpen, logHeight],
+        );
         // Coming back from a hidden tab or a sleeping laptop: a socket that died
         // meanwhile reads as "no frames", so ask for a fresh stream.
         useEffect(
@@ -2074,7 +2374,30 @@
           commitLogHeight(null);
         };
 
-        var pages = Array.isArray(state.pages) ? state.pages : [];
+        var serverPages = Array.isArray(state.pages) ? state.pages : [];
+        // A drop reorders the strip immediately; the host's poll catches up a
+        // moment later, so a local order bridges the gap and is dropped as soon
+        // as the polled page order is the one we already show.
+        var pages = serverPages;
+        if (tabOrder !== null) {
+          var byId = new Map(
+            serverPages.map(function (page) {
+              return [page.id, page];
+            }),
+          );
+          var ordered = [];
+          tabOrder.forEach(function (id) {
+            var page = byId.get(id);
+            if (page !== undefined) {
+              ordered.push(page);
+              byId.delete(id);
+            }
+          });
+          serverPages.forEach(function (page) {
+            if (byId.has(page.id)) ordered.push(page);
+          });
+          pages = ordered;
+        }
         var tabLabel = function (page) {
           if (page.title) return page.title;
           var short = shortUrl(page.url);
@@ -2093,10 +2416,293 @@
           });
         };
 
+        var showToast = function (text) {
+          setToast(text);
+          if (toastTimerRef.current !== 0) window.clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = window.setTimeout(function () {
+            toastTimerRef.current = 0;
+            setToast('');
+          }, 1900);
+        };
+
+        var postPage = function (body) {
+          return requestJson('/page', { method: 'POST', body: body }).then(
+            function (data) {
+              if (data && data.state) {
+                stateJsonRef.current = JSON.stringify(data.state);
+                setState(data.state);
+                setReachable(true);
+              }
+              return data;
+            },
+            function (failure) {
+              setError(failure && failure.message ? failure.message : String(failure));
+              return null;
+            },
+          );
+        };
+
+        var postConsole = function (body) {
+          return requestJson('/console', { method: 'POST', body: body }).then(
+            function (data) {
+              if (data && data.state) {
+                stateJsonRef.current = JSON.stringify(data.state);
+                setState(data.state);
+                setReachable(true);
+              }
+              return data;
+            },
+            function (failure) {
+              setError(failure && failure.message ? failure.message : String(failure));
+              return null;
+            },
+          );
+        };
+
+        var referencePage = function (page) {
+          var text = pageReferenceText(page, t);
+          showToast(insertComposerText(text + ' ') ? t('toast.referenced') : t('toast.noComposer'));
+        };
+
+        var holdOrder = function (ids) {
+          setTabOrder(ids);
+          if (orderTimerRef.current !== 0) window.clearTimeout(orderTimerRef.current);
+          orderTimerRef.current = window.setTimeout(function () {
+            orderTimerRef.current = 0;
+            setTabOrder(null);
+          }, 4000);
+        };
+
+        var tabShift = function (index) {
+          if (tabDrag === null || tabDrag.started !== true) return 0;
+          var dragged = pages[index];
+          if (dragged === undefined || dragged.id === tabDrag.id) return 0;
+          var step = tabDrag.width + TAB_GAP;
+          if (tabDrag.fromIndex < tabDrag.overIndex) {
+            if (index > tabDrag.fromIndex && index <= tabDrag.overIndex) return -step;
+          } else if (tabDrag.fromIndex > tabDrag.overIndex) {
+            if (index >= tabDrag.overIndex && index < tabDrag.fromIndex) return step;
+          }
+          return 0;
+        };
+
+        var updateDrag = function (clientX) {
+          var drag = dragRef.current;
+          if (drag === null) return;
+          var scrollDelta = drag.strip ? drag.strip.scrollLeft - drag.scrollAtStart : 0;
+          var deltaX = clientX - drag.startClientX + scrollDelta;
+          var center = drag.startLeft + (clientX - drag.startClientX) + drag.width / 2;
+          var overIndex = 0;
+          drag.order.forEach(function (id) {
+            if (id === drag.id) return;
+            var rect = drag.rects.get(id);
+            if (rect && center > rect.left + rect.width / 2 - scrollDelta) overIndex += 1;
+          });
+          drag.deltaX = deltaX;
+          drag.lastClientX = clientX;
+          drag.overIndex = Math.max(0, Math.min(drag.order.length - 1, overIndex));
+          setTabDrag({
+            id: drag.id,
+            fromIndex: drag.fromIndex,
+            overIndex: drag.overIndex,
+            deltaX: drag.deltaX,
+            width: drag.width,
+            started: true,
+          });
+        };
+
+        var dragAutoScroll = function () {
+          var drag = dragRef.current;
+          if (drag === null) {
+            autoScrollRef.current.frame = 0;
+            return;
+          }
+          var strip = drag.strip;
+          if (strip && autoScrollRef.current.dir !== 0) {
+            var before = strip.scrollLeft;
+            strip.scrollLeft = before + autoScrollRef.current.dir * 9;
+            if (strip.scrollLeft !== before) updateDrag(drag.lastClientX);
+          }
+          autoScrollRef.current.frame = window.requestAnimationFrame(dragAutoScroll);
+        };
+
+        var setAutoScroll = function (clientX) {
+          var drag = dragRef.current;
+          if (drag === null || drag.strip === null) return;
+          var rect = drag.strip.getBoundingClientRect();
+          var edge = 26;
+          autoScrollRef.current.dir = clientX < rect.left + edge ? -1 : clientX > rect.right - edge ? 1 : 0;
+          if (autoScrollRef.current.frame === 0) {
+            autoScrollRef.current.frame = window.requestAnimationFrame(dragAutoScroll);
+          }
+        };
+
+        var detachDragListeners = function () {
+          window.removeEventListener('pointermove', onTabPointerMove, { passive: false });
+          window.removeEventListener('pointerup', onTabPointerUp);
+          window.removeEventListener('pointercancel', onTabPointerUp);
+          window.removeEventListener('pointermove', onTabPointerMove);
+          if (autoScrollRef.current.frame !== 0) {
+            window.cancelAnimationFrame(autoScrollRef.current.frame);
+            autoScrollRef.current.frame = 0;
+          }
+          autoScrollRef.current.dir = 0;
+        };
+
+        var onTabPointerMove = function (event) {
+          var drag = dragRef.current;
+          if (drag === null || event.pointerId !== drag.pointerId) return;
+          if (drag.started !== true) {
+            if (Math.abs(event.clientX - drag.startClientX) < 4 && Math.abs(event.clientY - drag.startClientY) < 4) return;
+            drag.started = true;
+            suppressClickRef.current = true;
+          }
+          if (event.cancelable) event.preventDefault();
+          setAutoScroll(event.clientX);
+          updateDrag(event.clientX);
+        };
+
+        var onTabPointerUp = function (event) {
+          var drag = dragRef.current;
+          if (drag === null || (event.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
+          detachDragListeners();
+          dragRef.current = null;
+          if (drag.started !== true) return;
+          // Remember the lifted positions (transforms included) before the
+          // strip snaps to its new order; the layout effect below animates
+          // every tab from there to its final slot.
+          var before = new Map();
+          if (drag.strip) {
+            var nodes = drag.strip.querySelectorAll('[data-tab-id]');
+            for (var index = 0; index < nodes.length; index += 1) {
+              var rect = nodes[index].getBoundingClientRect();
+              before.set(nodes[index].getAttribute('data-tab-id'), rect.left);
+            }
+          }
+          flipRef.current = { lefts: before, id: drag.id };
+          var ids = pages.map(function (page) {
+            return page.id;
+          });
+          var fromIndex = ids.indexOf(drag.id);
+          var targetIndex = Math.max(0, Math.min(ids.length - 1, drag.overIndex));
+          setTabDrag(null);
+          if (fromIndex >= 0 && targetIndex !== fromIndex) {
+            var next = ids.slice();
+            next.splice(fromIndex, 1);
+            next.splice(targetIndex, 0, drag.id);
+            holdOrder(next);
+            void postPage({ action: 'move', id: drag.id, index: targetIndex });
+          }
+          window.setTimeout(function () {
+            suppressClickRef.current = false;
+          }, 0);
+        };
+
+        var onTabPointerDown = function (event, page, index) {
+          if (event.button !== 0 || locked) return;
+          if (event.target && typeof event.target.closest === 'function' && event.target.closest('.dvb-tab-close')) return;
+          var strip = tabsRef.current;
+          if (!strip) return;
+          var rects = new Map();
+          var order = [];
+          var nodes = strip.querySelectorAll('[data-tab-id]');
+          for (var cursor = 0; cursor < nodes.length; cursor += 1) {
+            var id = nodes[cursor].getAttribute('data-tab-id');
+            var rect = nodes[cursor].getBoundingClientRect();
+            rects.set(id, { left: rect.left, width: rect.width });
+            order.push(id);
+          }
+          var own = rects.get(page.id);
+          if (!own) return;
+          dragRef.current = {
+            id: page.id,
+            fromIndex: index,
+            overIndex: index,
+            pointerId: event.pointerId,
+            startClientX: event.clientX,
+            startClientY: event.clientY,
+            startLeft: own.left,
+            width: own.width,
+            rects: rects,
+            order: order,
+            strip: strip,
+            scrollAtStart: strip.scrollLeft,
+            lastClientX: event.clientX,
+            deltaX: 0,
+            started: false,
+          };
+          autoScrollRef.current.dir = 0;
+          window.addEventListener('pointermove', onTabPointerMove, { passive: false });
+          window.addEventListener('pointerup', onTabPointerUp);
+          window.addEventListener('pointercancel', onTabPointerUp);
+        };
+
+        var openTabMenu = function (event, page) {
+          event.preventDefault();
+          event.stopPropagation();
+          setTabMenu({ id: page.id, x: event.clientX, y: event.clientY });
+        };
+
+        var closeTabMenu = function () {
+          setTabMenu(null);
+        };
+
+        var runMenuAction = function (action) {
+          var page = tabMenu === null ? null : pages.find(function (candidate) { return candidate.id === tabMenu.id; });
+          closeTabMenu();
+          if (page === null) return;
+          if (action === 'reload') void postPage({ action: 'reload', id: page.id });
+          else if (action === 'reference') referencePage(page);
+          else if (action === 'close') void postPage({ action: 'close', id: page.id });
+          else if (action === 'close-all') void postPage({ action: 'close-all' });
+        };
+        var menuPage =
+          tabMenu === null
+            ? null
+            : pages.find(function (page) {
+                return page.id === tabMenu.id;
+              }) || null;
+
+        var menuItem = function (options) {
+          return h(
+            'button',
+            {
+              key: options.key,
+              type: 'button',
+              role: 'menuitem',
+              className: 'dvb-menu-item',
+              'data-danger': String(options.danger === true),
+              disabled: options.disabled === true,
+              onClick: function () {
+                runMenuAction(options.action);
+              },
+            },
+            h('span', { className: 'dvb-menu-glyph' }, icon(options.glyph, 14)),
+            h('span', null, options.label),
+          );
+        };
+
+        var consoleLevelLabel = function (level) {
+          var key = 'console.' + level;
+          var text = t(key);
+          return text === key ? level : text;
+        };
+
+        // Activity cues (lock tag, scroll arrows) still use the kind table.
         var kindLabel = function (kind) {
           var key = 'kind.' + kind;
           var text = t(key);
           return text === key ? kind : text;
+        };
+
+        var runConsole = function () {
+          var code = consoleDraft;
+          if (code.trim() === '' || consoleBusy || locked || !state.running) return;
+          setConsoleBusy(true);
+          setConsoleDraft('');
+          void postConsole({ action: 'eval', code: code }).finally(function () {
+            setConsoleBusy(false);
+          });
         };
 
         var statusText = !reachable
@@ -2107,7 +2713,7 @@
               ? t('state.running')
               : t('state.stopped');
 
-        var actions = state.actions || [];
+        var consoleEntries = Array.isArray(state.console) ? state.console : [];
         // The local animation lock is authoritative; the host's own flag only
         // matters for operations that outlive their animation (navigation) or
         // when the cue stream is down.
@@ -2218,47 +2824,92 @@
                   ),
             ),
           ),
-          pages.length > 1
-            ? h(
+          // Always visible, even with one page: the strip is the page
+          // switcher, the drag surface and the place the new-tab button lives.
+          h(
+            'div',
+            { key: 'tabs', className: 'dvb-tabs', ref: tabsRef, role: 'tablist', 'aria-label': t('tab.strip') },
+            pages.map(function (page, index) {
+              var lifted = tabDrag !== null && tabDrag.started === true && tabDrag.id === page.id;
+              var shift = tabDrag === null ? 0 : tabShift(index);
+              var style = lifted
+                ? { transform: 'translateX(' + Math.round(tabDrag.deltaX * 100) / 100 + 'px)' }
+                : shift !== 0
+                  ? { transform: 'translateX(' + shift + 'px)' }
+                  : undefined;
+              return h(
                 'div',
-                { key: 'tabs', className: 'dvb-tabs', ref: tabsRef, role: 'tablist', 'aria-label': t('tab.new') },
-                pages.map(function (page) {
-                  return h(
-                    'div',
-                    { key: page.id, className: 'dvb-tab', 'data-current': String(page.active === true) },
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'dvb-tab-label',
-                        title: page.title || page.url || page.id,
-                        role: 'tab',
-                        'aria-selected': String(page.active === true),
-                        disabled: locked,
-                        onClick: function () {
-                          if (page.active !== true) void run('select-page', '/page', { action: 'select', id: page.id });
-                        },
-                      },
-                      tabLabel(page),
-                    ),
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'dvb-tab-close',
-                        title: t('tab.close'),
-                        'aria-label': t('tab.close'),
-                        disabled: locked,
-                        onClick: function () {
-                          void run('close-page', '/page', { action: 'close', id: page.id });
-                        },
-                      },
-                      '×',
-                    ),
-                  );
-                }),
-              )
-            : null,
+                {
+                  key: page.id,
+                  className: 'dvb-tab',
+                  'data-tab-id': page.id,
+                  'data-current': String(page.active === true),
+                  'data-dragging': String(lifted),
+                  style: style,
+                  onPointerDown: function (event) {
+                    onTabPointerDown(event, page, index);
+                  },
+                  onContextMenu: function (event) {
+                    openTabMenu(event, page);
+                  },
+                  onDragStart: function (event) {
+                    event.preventDefault();
+                  },
+                },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dvb-tab-label',
+                    title: page.title || page.url || page.id,
+                    role: 'tab',
+                    'aria-selected': String(page.active === true),
+                    disabled: locked,
+                    onClick: function (event) {
+                      if (suppressClickRef.current) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                      }
+                      if (page.active !== true) void run('select-page', '/page', { action: 'select', id: page.id });
+                    },
+                  },
+                  tabLabel(page),
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dvb-tab-close',
+                    title: t('tab.close'),
+                    'aria-label': t('tab.close'),
+                    disabled: locked || pages.length <= 1,
+                    onPointerDown: function (event) {
+                      event.stopPropagation();
+                    },
+                    onClick: function (event) {
+                      event.stopPropagation();
+                      void run('close-page', '/page', { action: 'close', id: page.id });
+                    },
+                  },
+                  '×',
+                ),
+              );
+            }),
+            h(
+              'button',
+              {
+                key: 'add',
+                type: 'button',
+                className: 'dvb-tab-add',
+                title: t('tab.new'),
+                'aria-label': t('tab.new'),
+                disabled: !state.running || Boolean(busy) || locked,
+                onClick: openNewPage,
+              },
+              icon('plus', 14),
+            ),
+          ),
           h(
             'div',
             { key: 'addr', className: 'dvb-addr' },
@@ -2479,14 +3130,6 @@
               h('span', { className: 'dvb-key-text' }),
             ),
           ),
-          state.running && state.allowUserControl
-            ? h(
-                'div',
-                { key: 'hint', className: 'dvb-hint' },
-                h('span', null, locked ? t('agent.working') : t('hint.interactive')),
-                state.headless ? h('span', null, t('hint.headless')) : null,
-              )
-            : null,
           logOpen
             ? h('button', {
                 type: 'button',
@@ -2494,11 +3137,11 @@
                 className: 'dvb-split',
                 role: 'separator',
                 'aria-orientation': 'horizontal',
-                'aria-label': t('timeline.resize'),
+                'aria-label': t('console.resize'),
                 'aria-valuemin': LOG_MIN_HEIGHT,
                 'aria-valuemax': logHeightLimit(),
                 'aria-valuenow': logHeight !== null ? logHeight : undefined,
-                title: t('timeline.resize'),
+                title: t('console.resize'),
                 'data-active': String(resizing),
                 onPointerDown: onSplitDown,
                 onKeyDown: onSplitKeyDown,
@@ -2523,7 +3166,7 @@
                 {
                   type: 'button',
                   className: 'dvb-log-head',
-                  title: logOpen ? t('timeline.collapse') : t('timeline.expand'),
+                  title: logOpen ? t('console.collapse') : t('console.expand'),
                   'aria-expanded': String(logOpen),
                   onClick: function () {
                     setLogOpen(function (value) {
@@ -2532,22 +3175,26 @@
                   },
                 },
                 h('span', { className: 'dvb-log-chevron' }, icon('chevron', 12)),
-                h('span', { className: 'dvb-log-title' }, t('timeline.title')),
-                h('span', { className: 'dvb-log-count' }, actions.length > 0 ? String(actions.length) : ''),
+                h('span', { className: 'dvb-log-title' }, t('console.title')),
+                h(
+                  'span',
+                  { className: 'dvb-log-count' },
+                  consoleEntries.length > 0 ? String(consoleEntries.length) + ' ' + t('console.count') : '',
+                ),
                 h('span', { className: 'dvb-spacer' }),
                 reachable ? null : h('span', { className: 'dvb-status' }, t('state.offline')),
               ),
-              actions.length > 0
+              consoleEntries.length > 0
                 ? h(
                     'button',
                     {
                       key: 'clear',
                       type: 'button',
                       className: 'dvb-log-clear',
-                      title: t('timeline.clearTitle'),
-                      'aria-label': t('timeline.clearTitle'),
+                      title: t('console.clearTitle'),
+                      'aria-label': t('console.clearTitle'),
                       onClick: function () {
-                        void run(t('timeline.clear'), '/actions', { action: 'clear' });
+                        void postConsole({ action: 'clear' });
                       },
                     },
                     icon('trash', 13),
@@ -2558,21 +3205,106 @@
               ? h(
                   'div',
                   { className: 'dvb-log-body', ref: logBodyRef },
-                  actions.length === 0
-                    ? h('div', { className: 'dvb-log-empty' }, t('timeline.empty'))
-                    : actions.map(function (action) {
-                        var label = action.detail || action.target || kindLabel(action.kind);
+                  consoleEntries.length === 0
+                    ? h('div', { className: 'dvb-log-empty' }, t('console.empty'))
+                    : consoleEntries.map(function (entry) {
                         return h(
                           'div',
-                          { key: action.seq, className: 'dvb-row', title: label },
-                          h('span', { className: 'dvb-row-time' }, clock(action.ts)),
-                          h('span', { className: 'dvb-row-kind', 'data-kind': action.kind }, kindLabel(action.kind)),
-                          h('span', { className: 'dvb-row-text', 'data-error': String(action.ok === false) }, label),
+                          {
+                            key: entry.id,
+                            className: 'dvb-console-row',
+                            'data-level': entry.level,
+                            title: entry.url || '',
+                          },
+                          h('span', { className: 'dvb-console-time' }, clock(entry.ts)),
+                          h('span', { className: 'dvb-console-level' }, consoleLevelLabel(entry.level)),
+                          h('span', { className: 'dvb-console-text' }, entry.text),
                         );
                       }),
+                  // Pushes the input to the bottom while the list is short;
+                  // sticky positioning keeps it there once the list scrolls.
+                  h('div', { key: 'console-fill', style: { flex: '1 1 auto', minHeight: '2px' } }),
+                  h(
+                    'div',
+                    { key: 'console-input', className: 'dvb-console-input-row' },
+                    h('span', { className: 'dvb-console-prompt', 'aria-hidden': 'true' }, '>'),
+                    h('input', {
+                      className: 'dvb-console-input',
+                      type: 'text',
+                      spellCheck: false,
+                      disabled: !state.running || locked || consoleBusy,
+                      placeholder: t('console.placeholder'),
+                      value: consoleDraft,
+                      'aria-label': t('console.input'),
+                      onChange: function (event) {
+                        setConsoleDraft(event.target.value);
+                      },
+                      onKeyDown: function (event) {
+                        if (event.key !== 'Enter') return;
+                        event.preventDefault();
+                        runConsole();
+                      },
+                    }),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'dvb-console-run',
+                        disabled: consoleDraft.trim() === '' || consoleBusy || !state.running || locked,
+                        onClick: runConsole,
+                      },
+                      consoleBusy ? '…' : t('console.run'),
+                    ),
+                  ),
                 )
               : null,
           ),
+          tabMenu !== null && menuPage !== null
+            ? ReactDOM.createPortal(
+                h(
+                  'div',
+                  {
+                    className: 'dvb-menu',
+                    ref: menuRef,
+                    role: 'menu',
+                    'aria-label': t('tab.strip'),
+                    style: { left: tabMenu.x, top: tabMenu.y },
+                    onContextMenu: function (event) {
+                      event.preventDefault();
+                    },
+                  },
+                  menuItem({
+                    key: 'reload',
+                    label: t('action.reload'),
+                    glyph: 'reload',
+                    action: 'reload',
+                    disabled: !state.running || locked,
+                  }),
+                  menuItem({ key: 'reference', label: t('tab.reference'), glyph: 'link', action: 'reference' }),
+                  menuItem({
+                    key: 'close',
+                    label: t('tab.close'),
+                    glyph: 'close',
+                    action: 'close',
+                    disabled: !state.running || locked || pages.length <= 1,
+                  }),
+                  h('div', { key: 'sep', className: 'dvb-menu-sep', role: 'separator' }),
+                  menuItem({
+                    key: 'close-all',
+                    label: t('tab.closeAll'),
+                    glyph: 'trash',
+                    action: 'close-all',
+                    danger: true,
+                    disabled: !state.running || locked || pages.length === 0,
+                  }),
+                ),
+                document.body,
+                'dvb-tab-menu',
+              )
+            : null,
+          toast !== ''
+            ? h('div', { key: 'toast', className: 'dvb-toast', role: 'status', 'aria-live': 'polite' }, toast)
+            : null,
         );
       }
 

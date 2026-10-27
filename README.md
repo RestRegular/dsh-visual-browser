@@ -11,9 +11,10 @@ A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a
 - Your pointer, wheel and keyboard go straight to the DevTools input domain in
   animation-frame batches: click, drag, scroll and type with normal latency
   instead of "screenshot after the fact" latency.
-- Every action — the Agent's and yours — lands in a collapsible, scrollable
-  **operation log** whose height you can drag. Records only: there is nothing to
-  replay; a clear button empties it when it gets long.
+- The bottom **page console** shows the active page's own `console.*` output and
+  uncaught exceptions live, and runs the script you type in it (Enter) right in
+  that page, printing the returned value or the error. Its height is draggable,
+  it collapses, and a clear button empties it.
 - While the Agent drives, the panel **draws the operation**: a tinted lock veil
   covers the picture (the browser is locked for that moment), a simulated
   pointer travels to the target and a water ripple marks the click, scrolls get
@@ -48,20 +49,30 @@ dependencies; it talks CDP over the built-in WebSocket).
    *"打开 example.com 看看首页写了什么"*. The Agent calls `browser_open`.
 3. Watch the picture. Click, drag, wheel and type straight into it; the toolbar
    has back / forward / reload / **new page** / stop, and the address bar opens
-   any URL. Once there is more than one page a tab strip appears under the
-   toolbar: ＋ adds a page, a chip switches to it, its × closes it (the last page
-   stays). Every page is a real Chrome tab with its own history; only the active
-   one is streamed and receives input. Over
+   any URL. A tab strip always sits under the toolbar (even with one page): ＋
+   adds a page, a chip switches to it, its × closes it (the last page stays).
+   Right-click a chip for refresh / reference in the chat / close / close all,
+   and drag a chip sideways to reorder it — the lifted chip follows the pointer,
+   slides on frosted glass, and the other chips move aside like Chrome's own
+   tab strip. Every page is a real Chrome tab with its own history; only the
+   active one is streamed and receives input. Over
    the picture the native pointer is hidden and the panel draws the cursor, so
    what you see is the page's own position; dragging selects text, moves
    sliders and pans real scrollbars (the browser keeps its scrollbars).
 
-The operation log at the bottom remembers the Agent's actions and yours. Click
-its header to fold it away, or scroll it when the list is longer than the pane.
-The trash button clears the whole log. Drag the handle above the log to choose
-how much room it takes (the picture keeps a minimum reserve); double-click the
-handle to go back to the default, or focus it and use ↑ / ↓ (Shift for bigger
-steps, Home / End for the extremes). The chosen height is remembered per browser.
+**Reference a page in the chat** — right-click its tab and pick “引用到对话框 /
+Reference in the chat”. The page title and URL are inserted at the caret in the
+composer (nothing is sent), so the Agent can see exactly which page the next
+message talks about.
+
+The page console at the bottom is the active page's own console: webpage
+`console.log` / `warn` / `error`, script exceptions, and anything you run from the
+input line below it. Type an expression or statement and press Enter; the script
+runs in the page (promises are awaited) and the returned value is printed. Click
+the header to fold the console away, drag the handle above it to choose how much
+room it takes (the picture keeps a minimum reserve), or double-click the handle to
+reset. The trash button clears the console. The chosen height is remembered per
+browser.
 
 ### Watching the Agent act
 
@@ -200,9 +211,11 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
   - a same-origin prefix route `/visual-browser/api`:
     | Route | Purpose |
     | --- | --- |
-    | `GET /state` | Status, viewport and the operation log (tiny JSON poll). |
+    | `GET /state` | Status, viewport, tabs and the page console (tiny JSON poll). |
     | `GET /stream` | One long response of `[len][seq][jpeg]` frames. |
     | `POST /input` | A batch of pointer / wheel / key / text events. |
+    | `POST /page` | new / select / close / reload / close-all / move one page. |
+    | `POST /console` | eval a script in the active page, or clear the console. |
     | `POST /start`, `POST /stop`, `POST /nav` | Open a URL, close Chrome, back/forward/reload. |
 - **Live picture** (`lib/browser.js`): `Page.startScreencast` pushes a JPEG per
   painted frame; the manager acks each frame and fans the same buffer out to every
@@ -228,7 +241,7 @@ Chrome is killed with its process tree when the plugin unloads.
 
 - Cross-origin iframes are counted but not inspected; open the direct URL when a
   flow lives inside a frame.
-- Blocking JS dialogs are auto-accepted and logged in the operation log.
+- Blocking JS dialogs are auto-accepted and noted in the page console.
 - The panel route is served by the Harness web server on its existing origin;
   it performs no extra authentication, matching the other local panel routes.
 - The stream is a raw binary response on purpose: `multipart/x-mixed-replace`

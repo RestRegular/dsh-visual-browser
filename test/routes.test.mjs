@@ -111,6 +111,30 @@ function makeManager({ running = true } = {}) {
     async act(input) {
       this.calls.act = input;
     },
+    async newPage(url) {
+      this.calls.newPage = url;
+    },
+    async selectPage(id) {
+      this.calls.selected = id;
+    },
+    async closePage(id) {
+      this.calls.closedPage = id;
+    },
+    async reloadPage(id) {
+      this.calls.reloadedPage = id;
+    },
+    async closeAllPages() {
+      this.calls.closedAll = true;
+    },
+    async movePage(id, index) {
+      this.calls.moved = { id, index };
+    },
+    async evaluateConsole(code) {
+      this.calls.consoleCode = code;
+    },
+    clearConsole() {
+      this.calls.consoleCleared = true;
+    },
     noteError(error) {
       this.calls.error = error;
     },
@@ -249,6 +273,48 @@ async function request(manager, method, path, body) {
   const stop = await request(manager, 'POST', '/stop', {});
   assert.equal(stop.statusCode, 200);
   assert.equal(manager.calls.closed, true);
+}
+
+// page tab actions: reload, close all, reorder
+{
+  const manager = makeManager();
+  const reload = await request(manager, 'POST', '/page', { action: 'reload', id: 'p2' });
+  assert.equal(reload.statusCode, 200);
+  assert.equal(manager.calls.reloadedPage, 'p2');
+  assert.equal(manager.calls.refreshed, true);
+
+  const closeAll = await request(manager, 'POST', '/page', { action: 'close-all' });
+  assert.equal(closeAll.statusCode, 200);
+  assert.equal(manager.calls.closedAll, true);
+
+  const move = await request(manager, 'POST', '/page', { action: 'move', id: 'p3', index: 0 });
+  assert.equal(move.statusCode, 200);
+  assert.deepEqual(manager.calls.moved, { id: 'p3', index: 0 });
+
+  const rejected = await request(manager, 'POST', '/page', { action: 'teleport' });
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(rejected.json.error.code, 'BAD_ACTION');
+}
+
+// page console: evaluate and clear
+{
+  const manager = makeManager();
+  const evaluated = await request(manager, 'POST', '/console', { action: 'eval', code: '1 + 1' });
+  assert.equal(evaluated.statusCode, 200);
+  assert.equal(manager.calls.consoleCode, '1 + 1');
+  assert.ok(evaluated.json.state, 'the fresh state comes back with the answer');
+
+  const cleared = await request(manager, 'POST', '/console', { action: 'clear' });
+  assert.equal(cleared.statusCode, 200);
+  assert.equal(manager.calls.consoleCleared, true);
+
+  const missing = await request(manager, 'POST', '/console', { action: 'eval' });
+  assert.equal(missing.statusCode, 400);
+  assert.equal(missing.json.error.code, 'BAD_ACTION');
+
+  const rejected = await request(manager, 'POST', '/console', { action: 'teleport' });
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(rejected.json.error.code, 'BAD_ACTION');
 }
 
 // failures
