@@ -2881,7 +2881,10 @@
                         event.stopPropagation();
                         return;
                       }
-                      if (page.active !== true) void run('select-page', '/page', { action: 'select', id: page.id });
+                      // Always tell the host, even when this chip is already
+                      // marked current: Chrome's foreground tab can drift from
+                      // the panel, and this click is what brings it back.
+                      void run('select-page', '/page', { action: 'select', id: page.id });
                     },
                   },
                   tabLabel(page),

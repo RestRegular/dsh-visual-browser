@@ -95,6 +95,8 @@ assert.match(browserSource, /Target\.setDiscoverTargets/, 'tabs the page opens i
 assert.match(browserSource, /#adoptTarget|Target\.targetCreated/, 'a new page target is adopted instead of left hidden');
 assert.match(browserSource, /#forgetTarget|Target\.targetDestroyed/, 'a closed page target leaves the page list');
 assert.match(browserSource, /navigationGraceMs/, 'a never-finishing navigation is bounded');
+assert.match(browserSource, /Page\.bringToFront/, 'switching pages activates the Chrome tab so input is not queued');
+assert.match(browserSource, /return this\.#ensureScreencast\(\)/, 'a screencast pending for the old page retries for the new one');
 assert.ok(client.includes("key: 'stage'") && client.includes("key: 'log'"), 'root children keep stable keys so a tab change never remounts them');
 assert.ok(client.includes('--dsw-alias-interactive-bg-hover'), 'hover uses the interactive token, not a surface token');
 assert.ok(!/(^|\n)\s*(const|let)\s+[A-Za-z_$][\w$]*\s*=/.test(client.replace(/^\s*\/\/.*$/gm, '')) || client.trimStart().startsWith('(function'), 'client file is wrapped in an IIFE');
