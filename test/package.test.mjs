@@ -80,6 +80,8 @@ assert.ok(client.includes('/console'), 'clearing and evaluating go through the h
 assert.ok(client.includes("className: 'dvb-tab'") && client.includes('data-dragging'), 'tabs can be dragged');
 assert.ok(client.includes('onContextMenu') && client.includes('tab.reference'), 'tabs have a right-click menu with reference');
 assert.ok(client.includes('insertComposerText'), 'a tab can be referenced into the chat composer');
+assert.ok(client.includes('drag.startLeft + (releaseX - drag.startClientX)'), 'the drop settle starts from the synchronous pointer position');
+assert.ok(client.includes("node.style.transition = 'none'"), 'drag preview transforms are cancelled before the settle is measured');
 assert.ok(client.includes('lockedRef.current'), 'user input is refused while the Agent lock is up');
 assert.match(await readFile(join(root, 'lib/browser.js'), 'utf8'), /subscribeActivity|#beginActivity/, 'the host emits Agent operation cues');
 assert.match(await readFile(join(root, 'lib/browser.js'), 'utf8'), /Runtime\.consoleAPICalled/, 'the host captures the page console');

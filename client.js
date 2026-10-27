@@ -2122,20 +2122,33 @@
             var strip = tabsRef.current;
             if (!strip) return;
             var nodes = strip.querySelectorAll('[data-tab-id]');
-            var moving = [];
+            var all = [];
             for (var index = 0; index < nodes.length; index += 1) {
-              var node = nodes[index];
+              all.push(nodes[index]);
+            }
+            // Cancel the drag preview's transforms (and any transition still
+            // running on them) before measuring the settled layout. Measuring
+            // while the preview transform is mid-transition produced a bogus
+            // delta and made neighbour tabs animate from their old slots.
+            all.forEach(function (node) {
+              node.style.transition = 'none';
+              node.style.transform = '';
+            });
+            void strip.offsetWidth;
+            var moving = [];
+            all.forEach(function (node) {
               var before = flip.lefts.get(node.getAttribute('data-tab-id'));
-              if (before === undefined) continue;
+              if (before === undefined) return;
               var after = node.getBoundingClientRect().left;
               var delta = before - after;
-              if (Math.abs(delta) < 0.5) continue;
-              node.style.transition = 'none';
+              if (Math.abs(delta) < 0.5) {
+                node.style.transition = '';
+                return;
+              }
               node.style.transform = 'translateX(' + delta + 'px)';
               moving.push(node);
-            }
+            });
             if (moving.length === 0) return;
-            void strip.offsetWidth;
             window.requestAnimationFrame(function () {
               window.requestAnimationFrame(function () {
                 moving.forEach(function (node) {
@@ -2578,17 +2591,30 @@
           detachDragListeners();
           dragRef.current = null;
           if (drag.started !== true) return;
-          // Remember the lifted positions (transforms included) before the
-          // strip snaps to its new order; the layout effect below animates
-          // every tab from there to its final slot.
+          // Work out where every chip is *visually* at the moment of release
+          // from the synchronous drag data, not from getBoundingClientRect:
+          // React may not have painted the last pointermove yet, and measuring
+          // the DOM then would start the settle from a stale (often original)
+          // position, making the whole strip slide from where it used to be.
+          var scrollDelta = drag.strip ? drag.strip.scrollLeft - drag.scrollAtStart : 0;
+          var step = drag.width + TAB_GAP;
+          var releaseX = Number.isFinite(event.clientX) ? event.clientX : drag.lastClientX;
           var before = new Map();
-          if (drag.strip) {
-            var nodes = drag.strip.querySelectorAll('[data-tab-id]');
-            for (var index = 0; index < nodes.length; index += 1) {
-              var rect = nodes[index].getBoundingClientRect();
-              before.set(nodes[index].getAttribute('data-tab-id'), rect.left);
+          drag.order.forEach(function (id, index) {
+            if (id === drag.id) {
+              before.set(id, drag.startLeft + (releaseX - drag.startClientX));
+              return;
             }
-          }
+            var origin = drag.rects.get(id);
+            if (!origin) return;
+            var shift = 0;
+            if (drag.fromIndex < drag.overIndex) {
+              if (index > drag.fromIndex && index <= drag.overIndex) shift = -step;
+            } else if (drag.fromIndex > drag.overIndex) {
+              if (index >= drag.overIndex && index < drag.fromIndex) shift = step;
+            }
+            before.set(id, origin.left - scrollDelta + shift);
+          });
           flipRef.current = { lefts: before, id: drag.id };
           var ids = pages.map(function (page) {
             return page.id;
