@@ -51,28 +51,35 @@ dependencies; it talks CDP over the built-in WebSocket).
    has back / forward / reload / **new page** / stop, and the address bar opens
    any URL. A tab strip always sits under the toolbar (even with one page): ＋
    adds a page, a chip switches to it, its × closes it (the last page stays).
-   Right-click a chip for refresh / reference in the chat / close / close all,
-   and drag a chip sideways to reorder it — the lifted chip follows the pointer,
-   slides on frosted glass, and the other chips move aside like Chrome's own
-   tab strip. Every page is a real Chrome tab with its own history; only the
-   active one is streamed and receives input. Over
+   The whole rounded chip is the hit area — a click anywhere on it (padding,
+   icon, title) switches pages, and dragging from anywhere on it reorders the
+   strip (the × keeps its own click and close). Right-click a chip for refresh /
+   reference in the chat / close / close all; the lifted chip follows the
+   pointer, slides on frosted glass, and the other chips move aside like
+   Chrome's own tab strip. Every page is a real Chrome tab with its own history;
+   only the active one is streamed and receives input. Over
    the picture the native pointer is hidden and the panel draws the cursor, so
    what you see is the page's own position; dragging selects text, moves
    sliders and pans real scrollbars (the browser keeps its scrollbars).
 
 **Reference a page in the chat** — right-click its tab and pick “引用到对话框 /
-Reference in the chat”. The page title and URL are inserted at the caret in the
-composer (nothing is sent), so the Agent can see exactly which page the next
-message talks about.
+Reference in the chat”. The page drops into the composer as one atomic browser
+chip (a rounded bubble with a browser line icon and the tab id), at the caret,
+without sending anything. The chip travels as the text `[browser-page>p1]`, so
+the Agent can tell exactly which tab the next message talks about; one
+Backspace deletes the whole chip, and the sent message shows the same bubble.
+The insertion path is the built-in file-reference one: the Conversation input
+machine owns the node, so drafts and undo behave like every other reference.
 
 The page console at the bottom is the active page's own console: webpage
 `console.log` / `warn` / `error`, script exceptions, and anything you run from the
 input line below it. Type an expression or statement and press Enter; the script
 runs in the page (promises are awaited) and the returned value is printed. Click
-the header to fold the console away, drag the handle above it to choose how much
-room it takes (the picture keeps a minimum reserve), or double-click the handle to
-reset. The trash button clears the console. The chosen height is remembered per
-browser.
+the header to fold the console away; the panel remembers whether you left it
+open and starts folded for a visitor who never opened it. Drag the handle above
+it to choose how much room it takes (the picture keeps a minimum reserve), or
+double-click the handle to reset. The trash button clears the console. The
+chosen height is remembered too.
 
 ### Watching the Agent act
 

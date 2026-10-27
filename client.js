@@ -16,6 +16,12 @@
   var API = '/visual-browser/api';
   var NS = 'dsh-visual-browser';
   var KIND = 'visual-browser';
+  /**
+   * The chip source name. It is also the `data-composer-chip` value the chat
+   * composer puts on the chip's host element, so one name spans the reference
+   * text form, the chip, and its serializer.
+   */
+  var CHIP_SOURCE = 'browser-page';
   var BROWSER_TYPE_ID = '@deepseek-ai/dsh-client-ui-sidebar-browser';
   var BROWSER_KIND = 'browser';
 
@@ -210,12 +216,12 @@
     '.dvb-btn[data-variant="primary"]{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);padding:0 10px}',
     '.dvb-btn[data-variant="primary"]:hover:not(:disabled){background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);filter:brightness(1.06)}',
     '.dvb-tabs{position:relative;flex:none;display:flex;align-items:center;gap:4px;margin:-4px 0 -4px;padding:6px 8px 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overflow-anchor:none}',
-    '.dvb-tab{position:relative;flex:none;display:flex;align-items:center;gap:2px;height:26px;padding:0 3px 0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0;transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .17s cubic-bezier(.2,0,0,1);touch-action:none;user-select:none;-webkit-user-select:none}',
+    '.dvb-tab{position:relative;flex:none;display:flex;align-items:center;gap:2px;height:26px;padding:0 3px 0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .17s cubic-bezier(.2,0,0,1);touch-action:none;user-select:none;-webkit-user-select:none}',
     '.dvb-tab:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
     '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));border-color:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary)}',
     '.dvb-tab[data-dragging="true"]{z-index:30;cursor:grabbing;background:color-mix(in srgb,var(--dsw-alias-bg-base) 58%,transparent);border-color:var(--dsw-alias-border-l3);box-shadow:0 4px 10px rgba(0,0,0,.24),0 1px 3px rgba(0,0,0,.16);backdrop-filter:blur(14px) saturate(160%);-webkit-backdrop-filter:blur(14px) saturate(160%);transition:none!important;will-change:transform}',
     '.dvb-tab[data-dragging="true"]:hover{background:color-mix(in srgb,var(--dsw-alias-bg-base) 58%,transparent)}',
-    '.dvb-tab-label{display:block;max-width:140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0}',
+    '.dvb-tab-label{display:block;max-width:140px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;padding:0;touch-action:none}',
     '.dvb-tab[data-dragging="true"] .dvb-tab-label{cursor:grabbing}',
     '.dvb-tab-close{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;flex:none;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer;padding:0;opacity:0;transition:opacity .1s ease,background .1s ease,color .1s ease}',
     '.dvb-tab:hover .dvb-tab-close,.dvb-tab[data-current="true"] .dvb-tab-close,.dvb-tab-close:focus-visible{opacity:1}',
@@ -330,6 +336,21 @@
     '.dvb-guide-desc{font-size:10.5px;line-height:1.35;color:var(--dsw-alias-label-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.dvb-guide-sep{height:1px;margin:0 14px;background:var(--dsw-alias-border-l3)}',
     '.dvb-guide-card>svg,.dvb-guide-extra>svg{color:var(--dsw-alias-label-tertiary);flex:none}',
+    // ---- tab reference chips -------------------------------------------
+    // One line-art browser glyph, masked so it follows the text colour in
+    // both themes. The same variable draws the chip in the composer and the
+    // one in the sent message.
+    '  :root{--dvb-page-chip-icon:url("data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%221.25%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Crect x=%221.9%22 y=%223%22 width=%2212.2%22 height=%2210%22 rx=%222%22/%3E%3Cpath d=%22M1.9 6.1h12.2%22/%3E%3Ccircle cx=%224.4%22 cy=%224.55%22 r=%22.45%22 fill=%22%23fff%22 stroke=%22none%22/%3E%3C/svg%3E")}',
+    '.dvb-page-ref{display:inline-flex;align-items:center;gap:5px;max-width:220px;height:22px;margin:0 1px;padding:0 8px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;font-weight:500;line-height:20px;vertical-align:middle;user-select:none}',
+    '.dvb-page-ref-icon{flex:none;width:13px;height:13px;background:var(--dsw-alias-label-secondary);-webkit-mask:var(--dvb-page-chip-icon) center/contain no-repeat;mask:var(--dvb-page-chip-icon) center/contain no-repeat}',
+    '.dvb-page-ref-id{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-primary)}',
+    '[data-composer-chip="browser-page"]{display:inline-flex;align-items:center;vertical-align:baseline;max-width:100%}',
+    '[data-composer-chip="browser-page"] span[title]{display:inline-flex;align-items:center;gap:5px;max-width:220px;height:22px;padding:0 8px;box-sizing:border-box;border:1px solid var(--dsw-alias-border-l2);border-radius:7px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font-size:12px;font-weight:500;line-height:20px;vertical-align:middle;cursor:default}',
+    // The composer chip's built-in domain glyph ("@" when no appearance is
+    // set) is replaced by our own browser line icon to the left of the id.
+    '[data-composer-chip="browser-page"] span[title] > span:first-child{display:none}',
+    '[data-composer-chip="browser-page"] span[title]::before{content:"";flex:none;width:13px;height:13px;background:var(--dsw-alias-label-secondary);-webkit-mask:var(--dvb-page-chip-icon) center/contain no-repeat;mask:var(--dvb-page-chip-icon) center/contain no-repeat}',
+    '[data-composer-chip="browser-page"] span[title] > span:last-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}',
   ].join('\n');
 
   window.__ModuleLoader__.load({
@@ -825,6 +846,11 @@
        * localStorage so a chosen split survives reopening the tab.
        */
       var LOG_HEIGHT_KEY = 'dsh.visual-browser.log-height.v1';
+      /**
+       * Whether the console dock was left open. It starts folded for a visitor
+       * who has never opened it, so reopening the tab keeps the last choice.
+       */
+      var LOG_OPEN_KEY = 'dsh.visual-browser.log-open.v1';
       var LOG_MIN_HEIGHT = 96;
       var LOG_STAGE_RESERVE = 220;
       /** Gap between tabs, mirrored from `.dvb-tabs{gap}` for drag math. */
@@ -845,6 +871,23 @@
         try {
           if (value === null) window.localStorage.removeItem(LOG_HEIGHT_KEY);
           else window.localStorage.setItem(LOG_HEIGHT_KEY, String(Math.round(value)));
+        } catch {
+          /* storage can be unavailable; the choice just does not persist */
+        }
+      }
+
+      /** Folded until the user opens it: opening the panel never reopens it. */
+      function readStoredLogOpen() {
+        try {
+          return window.localStorage.getItem(LOG_OPEN_KEY) === 'true';
+        } catch {
+          return false;
+        }
+      }
+
+      function storeLogOpen(value) {
+        try {
+          window.localStorage.setItem(LOG_OPEN_KEY, value ? 'true' : 'false');
         } catch {
           /* storage can be unavailable; the choice just does not persist */
         }
@@ -949,10 +992,82 @@
         }
       }
 
-      function pageReferenceText(page, t) {
-        var url = page && typeof page.url === 'string' && page.url !== 'about:blank' ? page.url : '';
-        var label = page && page.title ? page.title : url !== '' ? shortUrl(url) : t('tab.untitled');
-        return url !== '' ? '[' + label + '](' + url + ')' : '[' + label + ']';
+      /** The Session whose composer is mounted around this editor root. */
+      function composerSessionId(root) {
+        if (!root || typeof root.closest !== 'function') return '';
+        var host = root.closest('[data-conversation-session]');
+        var id = host === null ? null : host.getAttribute('data-conversation-session');
+        return typeof id === 'string' ? id : '';
+      }
+
+      /**
+       * The reference spelling the model receives and the chip's clipboard
+       * form. The tab id is inside the brackets, so the Agent can name the tab
+       * even though the bubble only shows that id.
+       */
+      function pageReferenceMention(page) {
+        var id = page && page.id !== undefined && page.id !== null ? String(page.id) : '';
+        return id === '' ? '' : '[' + CHIP_SOURCE + '>' + id + ']';
+      }
+
+      /**
+       * Insert one page as an atomic reference chip in the chat composer —
+       * the same way the built-in file reference puts a file chip there. The
+       * Conversation service owns the Lexical editor, so its node is deleted
+       * whole by one Backspace and survives draft persistence; its clipboard
+       * form is exactly the `[browser-page>id]` text the model reads.
+       *
+       * Returns false when the composer or the chip API is unavailable, so the
+       * caller can fall back to plain text (which the same UserText rule still
+       * renders as a bubble once sent).
+       */
+      function insertComposerPageReference(ctx, page) {
+        var mention = pageReferenceMention(page);
+        if (mention === '') return false;
+        var root = composerRoot();
+        if (root === null) return false;
+        var sessionId = composerSessionId(root);
+        var conversation = ctx.get('conversation');
+        var shell = null;
+        if (sessionId !== '' && conversation && conversation.input && typeof conversation.input.shell === 'function') {
+          try {
+            shell = conversation.input.shell(sessionId);
+          } catch {
+            shell = null;
+          }
+        }
+        if (shell !== null && typeof shell.addFiles === 'function') {
+          // Restore the caret the user left in this composer before the chip is
+          // appended; Lexical remembers it across the panel interaction. A
+          // focus failure must not cost the chip itself.
+          if (typeof shell.focus === 'function') {
+            try {
+              shell.focus();
+            } catch {
+              /* the insertion still lands at the editor's selection or end */
+            }
+          }
+          try {
+            var inserted = shell.addFiles(
+              [
+                {
+                  source: CHIP_SOURCE,
+                  ref: mention,
+                  label: String(page.id),
+                  clipboardText: mention,
+                },
+              ],
+              [],
+            );
+            if (inserted === true) return true;
+          } catch (error) {
+            console.warn(
+              '[dsh-visual-browser] composer chip insertion failed:',
+              error && error.message ? error.message : error,
+            );
+          }
+        }
+        return insertComposerText(mention + ' ');
       }
 
       function BrowserTab(props) {
@@ -965,7 +1080,7 @@
         var [error, setError] = useState('');
         var [draft, setDraft] = useState('');
         var [dirty, setDirty] = useState(false);
-        var [logOpen, setLogOpen] = useState(true);
+        var [logOpen, setLogOpen] = useState(readStoredLogOpen);
         var [logHeight, setLogHeight] = useState(readStoredLogHeight);
         var [resizing, setResizing] = useState(false);
         var [consoleDraft, setConsoleDraft] = useState('');
@@ -2304,6 +2419,14 @@
           applyLogHeight(value);
         };
 
+        // Persist the fold itself: the panel remounts on every tab switch, and
+        // a visitor who closed the console never wants it back automatically.
+        var toggleLogOpen = function () {
+          var next = !logOpen;
+          storeLogOpen(next);
+          setLogOpen(next);
+        };
+
         // The CSS `height` is a content-box height; measuring the same box keeps
         // a drag from jumping by the body's padding on the first pixel.
         var currentLogHeight = function () {
@@ -2474,8 +2597,7 @@
         };
 
         var referencePage = function (page) {
-          var text = pageReferenceText(page, t);
-          showToast(insertComposerText(text + ' ') ? t('toast.referenced') : t('toast.noComposer'));
+          showToast(insertComposerPageReference(ctx, page) ? t('toast.referenced') : t('toast.noComposer'));
         };
 
         var holdOrder = function (ids) {
@@ -2885,6 +3007,21 @@
                   onPointerDown: function (event) {
                     onTabPointerDown(event, page, index);
                   },
+                  // The click target is the whole rounded chip, not just its
+                  // label: padding, icon and the gap are the same control.
+                  // A drag settles before this fires, and the × stops its own
+                  // click, so neither can select the page by accident. Always
+                  // tell the host, even when the chip already reads current:
+                  // Chrome's foreground tab can drift from the panel, and this
+                  // click is what brings it back.
+                  onClick: function (event) {
+                    if (suppressClickRef.current) {
+                      event.preventDefault();
+                      return;
+                    }
+                    if (locked) return;
+                    void run('select-page', '/page', { action: 'select', id: page.id });
+                  },
                   onContextMenu: function (event) {
                     openTabMenu(event, page);
                   },
@@ -2901,17 +3038,8 @@
                     role: 'tab',
                     'aria-selected': String(page.active === true),
                     disabled: locked,
-                    onClick: function (event) {
-                      if (suppressClickRef.current) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        return;
-                      }
-                      // Always tell the host, even when this chip is already
-                      // marked current: Chrome's foreground tab can drift from
-                      // the panel, and this click is what brings it back.
-                      void run('select-page', '/page', { action: 'select', id: page.id });
-                    },
+                    // The container owns the click; a focused chip's keyboard
+                    // activation still bubbles out of this button.
                   },
                   tabLabel(page),
                 ),
@@ -3207,11 +3335,7 @@
                   className: 'dvb-log-head',
                   title: logOpen ? t('console.collapse') : t('console.expand'),
                   'aria-expanded': String(logOpen),
-                  onClick: function () {
-                    setLogOpen(function (value) {
-                      return !value;
-                    });
-                  },
+                  onClick: toggleLogOpen,
                 },
                 h('span', { className: 'dvb-log-chevron' }, icon('chevron', 12)),
                 h('span', { className: 'dvb-log-title' }, t('console.title')),
@@ -3365,6 +3489,56 @@
       }
 
       // -------------------------------------------------------------------
+      // Chat reference
+      // -------------------------------------------------------------------
+
+      // A reference chip is persisted and sent as its clipboard form, so the
+      // exact text the model reads is also the text a sent message carries.
+      // The pattern is deliberately narrow: the id holds no whitespace or `]`.
+      /**
+       * Name one page reference in the text around a candidate position.
+       * @param {string} text - the whole message text.
+       * @param {number} from - first offset a candidate may start at.
+       * @returns the UserText node, or undefined when no reference follows.
+       */
+      function nextPageReference(text, from) {
+        var pattern = /\[browser-page>([^\]\s]+)\]/g;
+        pattern.lastIndex = from;
+        var found = pattern.exec(text);
+        if (found === null) return undefined;
+        return {
+          id: CHIP_SOURCE,
+          start: found.index,
+          end: found.index + found[0].length,
+          data: { id: found[1] },
+        };
+      }
+
+      var PAGE_REFERENCE_RULE = {
+        id: CHIP_SOURCE,
+        order: 25,
+        match: nextPageReference,
+      };
+
+      /**
+       * The sent-message form of a page reference: a rounded chip carrying the
+       * browser line icon and the same tab id the model reads.
+       * @param {object} props - the UserText node and its original spelling.
+       * @returns one inline chip.
+       */
+      function BrowserPageReference(props) {
+        var data = props && props.node && props.node.data ? props.node.data : null;
+        var id = data && typeof data.id === 'string' && data.id !== '' ? data.id : '';
+        var raw = props && typeof props.raw === 'string' ? props.raw : '';
+        return h(
+          'span',
+          { className: 'dvb-page-ref', title: raw !== '' ? raw : id },
+          h('span', { className: 'dvb-page-ref-icon', 'aria-hidden': 'true' }),
+          h('span', { className: 'dvb-page-ref-id' }, id !== '' ? id : raw),
+        );
+      }
+
+      // -------------------------------------------------------------------
       // Module
       // -------------------------------------------------------------------
 
@@ -3442,6 +3616,58 @@
               'dsh-visual-browser: tab type',
             );
           });
+
+          // A page chip needs three pieces: a serializer for the composer node
+          // (the editor refuses a send whose chip has no codec), a UserText rule
+          // for the sent text, and the bubble that rule renders.
+          ctx.inject(['inputTriggers'], function (scope) {
+            var inputTriggers = scope.get('inputTriggers');
+            if (!inputTriggers || typeof inputTriggers.registerSource !== 'function') return;
+            scope.effect(
+              function () {
+                return inputTriggers.registerSource({
+                  // A chip resolves its serializer by source name, never by a
+                  // typed trigger. Staying on `@` keeps the source inside the
+                  // declared trigger set, and offering no candidates keeps the
+                  // reference menu free of extra rows.
+                  trigger: '@',
+                  name: CHIP_SOURCE,
+                  order: 100,
+                  showGroupTitle: false,
+                  candidates: function () {
+                    return Promise.resolve([]);
+                  },
+                  codec: {
+                    clipboardText: function (ref) {
+                      return ref;
+                    },
+                    serialize: function (ref) {
+                      return Promise.resolve(ref);
+                    },
+                  },
+                });
+              },
+              'dsh-visual-browser: page reference serializer',
+            );
+          });
+
+          ctx.inject(['uiConversation'], function (scope) {
+            var conversation = scope.get('uiConversation');
+            if (!conversation || !conversation.userText || typeof conversation.userText.register !== 'function') return;
+            scope.effect(
+              function () {
+                return conversation.userText.register(PAGE_REFERENCE_RULE);
+              },
+              'dsh-visual-browser: page reference rule',
+            );
+          });
+
+          register(
+            'conversation.user.text.node',
+            { key: CHIP_SOURCE, locale: NS },
+            BrowserPageReference,
+            'dsh-visual-browser: page reference bubble',
+          );
 
           register(
             'sidebar.right.pane.tab',
