@@ -237,7 +237,18 @@
     '.dvb-btn:disabled{opacity:.4;cursor:default}',
     '.dvb-btn[data-variant="primary"]{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);padding:0 10px}',
     '.dvb-btn[data-variant="primary"]:hover:not(:disabled){background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);filter:brightness(1.06)}',
-    '.dvb-tabs{position:relative;flex:none;display:flex;align-items:center;gap:4px;padding:8px 8px 4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overflow-anchor:none}',
+    // The strip scrolls sideways, but its bar must not cost any layout height:
+    // the native scrollbar is hidden and `.dvb-tabs-scroll` draws a floating
+    // stand-in over the strip's bottom edge instead (see below).
+    '.dvb-tabs{position:relative;display:flex;align-items:center;gap:4px;padding:8px 8px 4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;overflow-anchor:none;overscroll-behavior-x:contain}',
+    '.dvb-tabs::-webkit-scrollbar{width:0;height:0;display:none}',
+    '.dvb-tabs-wrap{position:relative;flex:none;min-width:0}',
+    '.dvb-tabs-scroll{position:absolute;left:8px;right:8px;bottom:1px;height:6px;pointer-events:none;opacity:0;transition:opacity .18s ease}',
+    '.dvb-tabs-scroll[data-on="true"]{opacity:1}',
+    // A thin pill at rest; it thickens (still upwards, off the pill's own
+    // bottom edge) while the pointer comes near the bottom of the strip.
+    '.dvb-tabs-thumb{position:absolute;bottom:0;height:3px;min-width:16px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 26%,transparent);transition:height .14s ease,background .14s ease}',
+    '.dvb-tabs-scroll[data-wide="true"] .dvb-tabs-thumb{height:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 38%,transparent)}',
     '.dvb-tab{position:relative;flex:none;display:flex;align-items:center;gap:2px;height:26px;padding:0 3px 0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .17s cubic-bezier(.2,0,0,1);touch-action:none;user-select:none;-webkit-user-select:none}',
     '.dvb-tab:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
     '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));border-color:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary)}',
@@ -1239,6 +1250,13 @@
         var logBodyRef = useRef(null);
         var splitRef = useRef(null);
         var tabsRef = useRef(null);
+        var tabsWrapRef = useRef(null);
+        // Overlay scrollbar of the tab strip: `{length,pos}` in percent of the
+        // strip's track, or null when the tabs fit and it stays hidden.
+        var [tabsScroll, setTabsScroll] = useState(null);
+        // True while the pointer is near the strip's bottom edge, which is the
+        // only time the thin bar thickens.
+        var [tabsNear, setTabsNear] = useState(false);
         var addrRef = useRef(null);
         var stageRef = useRef(null);
         var canvasRef = useRef(null);
@@ -2499,6 +2517,76 @@
           [state.activePageId],
         );
 
+        // ---- tab strip: overlay scrollbar ---------------------------------
+        // The strip is the horizontal scroller, so its bar has to live outside
+        // it (an absolutely positioned child of a scroller would scroll away
+        // with the tabs). `.dvb-tabs-scroll` sits on the wrapper instead and
+        // mirrors `scrollLeft`: it floats over the strip's bottom padding, so
+        // the strip is never taller than its tabs.
+        var syncTabsScroll = function () {
+          var strip = tabsRef.current;
+          if (!strip) return;
+          var view = strip.clientWidth;
+          var total = strip.scrollWidth;
+          // Under a pixel of slack is rounding, not overflow: keep it hidden.
+          if (view <= 0 || total - view <= 1) {
+            setTabsScroll(function (previous) {
+              return previous === null ? previous : null;
+            });
+            return;
+          }
+          var length = Math.min(100, Math.max(6, (view / total) * 100));
+          var pos = (strip.scrollLeft / (total - view)) * (100 - length);
+          var next = { length: Math.round(length * 100) / 100, pos: Math.round(pos * 100) / 100 };
+          setTabsScroll(function (previous) {
+            if (previous !== null && previous.length === next.length && previous.pos === next.pos) return previous;
+            return next;
+          });
+        };
+
+        useEffect(
+          function () {
+            var strip = tabsRef.current;
+            if (!strip) return undefined;
+            syncTabsScroll();
+            strip.addEventListener('scroll', syncTabsScroll, { passive: true });
+            var observer = typeof ResizeObserver === 'function' ? new ResizeObserver(syncTabsScroll) : null;
+            if (observer) observer.observe(strip);
+            window.addEventListener('resize', syncTabsScroll);
+            return function () {
+              strip.removeEventListener('scroll', syncTabsScroll);
+              if (observer) observer.disconnect();
+              window.removeEventListener('resize', syncTabsScroll);
+            };
+          },
+          [],
+        );
+
+        // Opening or closing a tab changes the content width without resizing
+        // the strip, so neither the observer nor a scroll event would notice.
+        useEffect(
+          function () {
+            syncTabsScroll();
+          },
+          [state.pages],
+        );
+
+        var TAB_BAR_NEAR = 12;
+        var onTabsPointerMove = function (event) {
+          var wrap = tabsWrapRef.current;
+          if (!wrap) return;
+          var rect = wrap.getBoundingClientRect();
+          var near = rect.bottom - event.clientY <= TAB_BAR_NEAR;
+          setTabsNear(function (previous) {
+            return previous === near ? previous : near;
+          });
+        };
+        var onTabsPointerLeave = function () {
+          setTabsNear(function (previous) {
+            return previous === false ? previous : false;
+          });
+        };
+
         // Once the host reports the order a drop previewed, the local overlay
         // has done its job; keeping it longer would mask a new tab or a close.
         useEffect(
@@ -3342,95 +3430,125 @@
           // switcher, the drag surface and the place the new-tab button lives.
           h(
             'div',
-            { key: 'tabs', className: 'dvb-tabs', ref: tabsRef, role: 'tablist', 'aria-label': t('tab.strip') },
-            pages.map(function (page, index) {
-              var lifted = tabDrag !== null && tabDrag.started === true && tabDrag.id === page.id;
-              var shift = tabDrag === null ? 0 : tabShift(index);
-              var style = lifted
-                ? { transform: 'translateX(' + Math.round(tabDrag.deltaX * 100) / 100 + 'px)' }
-                : shift !== 0
-                  ? { transform: 'translateX(' + shift + 'px)' }
-                  : undefined;
-              return h(
-                'div',
-                {
-                  key: page.id,
-                  className: 'dvb-tab',
-                  'data-tab-id': page.id,
-                  'data-current': String(page.active === true),
-                  'data-dragging': String(lifted),
-                  style: style,
-                  onPointerDown: function (event) {
-                    onTabPointerDown(event, page, index);
-                  },
-                  // The click target is the whole rounded chip, not just its
-                  // label: padding, icon and the gap are the same control.
-                  // A drag settles before this fires, and the × stops its own
-                  // click, so neither can select the page by accident. Always
-                  // tell the host, even when the chip already reads current:
-                  // Chrome's foreground tab can drift from the panel, and this
-                  // click is what brings it back.
-                  onClick: function (event) {
-                    if (suppressClickRef.current) {
-                      event.preventDefault();
-                      return;
-                    }
-                    if (locked) return;
-                    void run('select-page', '/page', { action: 'select', id: page.id });
-                  },
-                  onContextMenu: function (event) {
-                    openTabMenu(event, page);
-                  },
-                  onDragStart: function (event) {
-                    event.preventDefault();
-                  },
-                },
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'dvb-tab-label',
-                    title: page.title || page.url || page.id,
-                    role: 'tab',
-                    'aria-selected': String(page.active === true),
-                    disabled: locked,
-                    // The container owns the click; a focused chip's keyboard
-                    // activation still bubbles out of this button.
-                  },
-                  tabLabel(page),
-                ),
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'dvb-tab-close',
-                    title: t('tab.close'),
-                    'aria-label': t('tab.close'),
-                    disabled: locked,
-                    onPointerDown: function (event) {
-                      event.stopPropagation();
-                    },
-                    onClick: function (event) {
-                      event.stopPropagation();
-                      void run('close-page', '/page', { action: 'close', id: page.id });
-                    },
-                  },
-                  '×',
-                ),
-              );
-            }),
+            {
+              key: 'tabs-wrap',
+              className: 'dvb-tabs-wrap',
+              ref: tabsWrapRef,
+              onMouseMove: onTabsPointerMove,
+              onMouseLeave: onTabsPointerLeave,
+            },
             h(
-              'button',
+              'div',
+              { key: 'tabs', className: 'dvb-tabs', ref: tabsRef, role: 'tablist', 'aria-label': t('tab.strip') },
+              pages.map(function (page, index) {
+                var lifted = tabDrag !== null && tabDrag.started === true && tabDrag.id === page.id;
+                var shift = tabDrag === null ? 0 : tabShift(index);
+                var style = lifted
+                  ? { transform: 'translateX(' + Math.round(tabDrag.deltaX * 100) / 100 + 'px)' }
+                  : shift !== 0
+                    ? { transform: 'translateX(' + shift + 'px)' }
+                    : undefined;
+                return h(
+                  'div',
+                  {
+                    key: page.id,
+                    className: 'dvb-tab',
+                    'data-tab-id': page.id,
+                    'data-current': String(page.active === true),
+                    'data-dragging': String(lifted),
+                    style: style,
+                    onPointerDown: function (event) {
+                      onTabPointerDown(event, page, index);
+                    },
+                    // The click target is the whole rounded chip, not just its
+                    // label: padding, icon and the gap are the same control.
+                    // A drag settles before this fires, and the × stops its own
+                    // click, so neither can select the page by accident. Always
+                    // tell the host, even when the chip already reads current:
+                    // Chrome's foreground tab can drift from the panel, and this
+                    // click is what brings it back.
+                    onClick: function (event) {
+                      if (suppressClickRef.current) {
+                        event.preventDefault();
+                        return;
+                      }
+                      if (locked) return;
+                      void run('select-page', '/page', { action: 'select', id: page.id });
+                    },
+                    onContextMenu: function (event) {
+                      openTabMenu(event, page);
+                    },
+                    onDragStart: function (event) {
+                      event.preventDefault();
+                    },
+                  },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dvb-tab-label',
+                      title: page.title || page.url || page.id,
+                      role: 'tab',
+                      'aria-selected': String(page.active === true),
+                      disabled: locked,
+                      // The container owns the click; a focused chip's keyboard
+                      // activation still bubbles out of this button.
+                    },
+                    tabLabel(page),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dvb-tab-close',
+                      title: t('tab.close'),
+                      'aria-label': t('tab.close'),
+                      disabled: locked,
+                      onPointerDown: function (event) {
+                        event.stopPropagation();
+                      },
+                      onClick: function (event) {
+                        event.stopPropagation();
+                        void run('close-page', '/page', { action: 'close', id: page.id });
+                      },
+                    },
+                    '×',
+                  ),
+                );
+              }),
+              h(
+                'button',
+                {
+                  key: 'add',
+                  type: 'button',
+                  className: 'dvb-tab-add',
+                  title: t('tab.new'),
+                  'aria-label': t('tab.new'),
+                  disabled: !state.running || Boolean(busy) || locked,
+                  onClick: openNewPage,
+                },
+                icon('plus', 14),
+              ),
+            ),
+            // The bar itself: absolutely positioned over the strip's bottom
+            // padding, so it costs the layout no height at all. Hidden while
+            // the tabs fit, thin at rest, a little thicker near the pointer.
+            h(
+              'div',
               {
-                key: 'add',
-                type: 'button',
-                className: 'dvb-tab-add',
-                title: t('tab.new'),
-                'aria-label': t('tab.new'),
-                disabled: !state.running || Boolean(busy) || locked,
-                onClick: openNewPage,
+                key: 'tabs-scrollbar',
+                className: 'dvb-tabs-scroll',
+                'data-on': String(tabsScroll !== null),
+                'data-wide': String(tabsNear),
+                'aria-hidden': 'true',
               },
-              icon('plus', 14),
+              h('span', {
+                className: 'dvb-tabs-thumb',
+                style:
+                  tabsScroll === null
+                    ? undefined
+                    : { width: tabsScroll.length + '%', left: tabsScroll.pos + '%' },
+              }),
             ),
           ),
           // One toolbar row: history buttons, the URL box, then the page

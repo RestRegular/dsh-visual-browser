@@ -63,7 +63,10 @@ dependencies; it talks CDP over the built-in WebSocket).
    copy link / open in your default browser / reference in the chat / close /
    close all; the lifted chip follows the
    pointer, slides on frosted glass, and the other chips move aside like
-   Chrome's own tab strip. Every page is a real Chrome tab with its own history;
+   Chrome's own tab strip. Once the chips outgrow the strip it scrolls sideways,
+   and its bar floats over the strip's bottom edge instead of taking a row of its
+   own: a thin pill that thickens a little when the pointer comes near it.
+   Every page is a real Chrome tab with its own history;
    only the active one is streamed and receives input. Over
    the picture the native pointer is hidden and the panel draws the cursor, so
    what you see is the page's own position; dragging selects text, moves
