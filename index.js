@@ -23,7 +23,42 @@ export function apply(ctx, config = {}) {
     'dsh-visual-browser: browser lifecycle',
   );
 
-  const tools = browserTools(manager, ctx);
+  // A workspace owns one tab strip: every Session in it resolves to the same
+  // scope, while an ungrouped Session gets a scope of its own. The registry is
+  // sampled through `inject` so a cold page boot cannot capture undefined.
+  let workspaceRegistry = null;
+  try {
+    ctx.inject(['workspaceRegistry'], (scoped) => {
+      const registry = scoped.get('workspaceRegistry');
+      workspaceRegistry = registry;
+      scoped.effect(
+        () => () => {
+          if (workspaceRegistry === registry) workspaceRegistry = null;
+        },
+        'dsh-visual-browser: workspace registry handle',
+      );
+    });
+  } catch (error) {
+    logger?.warn?.(`[visual-browser] workspace registry unavailable: ${error?.message ?? error}`);
+  }
+
+  const scopeOfSession = (sessionId) => {
+    const id = String(sessionId ?? '').trim();
+    if (id === '') return 'default';
+    try {
+      const list = workspaceRegistry?.list?.() ?? [];
+      for (const workspace of list) {
+        if (Array.isArray(workspace.sessionIds) && workspace.sessionIds.includes(id)) {
+          return `workspace:${workspace.id}`;
+        }
+      }
+    } catch {
+      /* a registry that is still booting falls back to the session scope */
+    }
+    return `session:${id}`;
+  };
+
+  const tools = browserTools(manager, ctx, { scopeOf: scopeOfSession });
   try {
     ctx.inject(['tools'], (scoped) => {
       for (const definition of tools) {
@@ -39,5 +74,5 @@ export function apply(ctx, config = {}) {
     logger?.warn?.(`[visual-browser] tool registration failed: ${error?.message ?? error}`);
   }
 
-  mountRoutes(ctx, manager);
+  mountRoutes(ctx, manager, { resolveScope: scopeOfSession });
 }

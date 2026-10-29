@@ -479,6 +479,9 @@
       var POLL_TIMEOUT_MS = 3500;
 
       async function requestJson(path, options) {
+        var session = options && typeof options.session === 'string' ? options.session : '';
+        var target = path;
+        if (session !== '') target += (path.indexOf('?') >= 0 ? '&' : '?') + 'session=' + encodeURIComponent(session);
         var init = { method: (options && options.method) || 'GET', headers: {} };
         if (options && options.body !== undefined) {
           init.headers['content-type'] = 'application/json';
@@ -496,7 +499,7 @@
           }
         }, (options && options.timeoutMs) || REQUEST_TIMEOUT_MS);
         try {
-          var response = await fetch(API + path, init);
+          var response = await fetch(API + target, init);
           var text = await response.text();
           var data = null;
           if (text) {
@@ -661,8 +664,10 @@
             done('timed out');
           }, inFlightTimeout);
           var payload = JSON.stringify({ events: batch });
+          var session = typeof options?.session === 'string' ? options.session : '';
+          var inputPath = API + '/input' + (session === '' ? '' : '?session=' + encodeURIComponent(session));
           var post = function (keepalive) {
-            return fetch(API + '/input', {
+            return fetch(inputPath, {
               method: 'POST',
               headers: { 'content-type': 'application/json' },
               body: payload,
@@ -1186,6 +1191,12 @@
       function BrowserTab(props) {
         var ctx = props.ctx;
         var t = props.t || translateCurrent;
+        // The Session whose workspace this strip belongs to. The slot passes it
+        // as a standard prop; if a host mounts the panel without it, the sidebar
+        // owner's DOM attribute is the fallback.
+        var [panelSession, setPanelSession] = useState(function () {
+          return typeof props.sessionId === 'string' ? props.sessionId : '';
+        });
         var [tick, setTick] = useState(0);
         var [state, setState] = useState(EMPTY_STATE);
         var [reachable, setReachable] = useState(true);
@@ -1270,8 +1281,32 @@
         var inputErrorTimerRef = useRef(0);
         var tRef = useRef(t);
         tRef.current = t;
+
+        // A reused pane can be handed a different Session; follow the prop.
+        useEffect(
+          function () {
+            var next = typeof props.sessionId === 'string' ? props.sessionId : '';
+            if (next !== '' && next !== panelSession) setPanelSession(next);
+          },
+          [props.sessionId, panelSession],
+        );
+
+        // Resolve the owning Session once the sidebar owner is in the DOM, so
+        // the panel's requests and streams land in that workspace's tab strip.
+        useEffect(
+          function () {
+            if (panelSession !== '') return;
+            var root = rootRef.current;
+            var owner = root && typeof root.closest === 'function' ? root.closest('[data-sidebar-right-session]') : null;
+            var id = owner && typeof owner.getAttribute === 'function' ? owner.getAttribute('data-sidebar-right-session') : '';
+            if (typeof id === 'string' && id !== '') setPanelSession(id);
+          },
+          [panelSession],
+        );
+
         var sender = useMemo(function () {
           return createSender({
+            session: panelSession,
             onFailure: function (message) {
               setInputError(tRef.current('error.input') + ' ' + message);
               if (inputErrorTimerRef.current !== 0) window.clearTimeout(inputErrorTimerRef.current);
@@ -1288,7 +1323,7 @@
               }
             },
           });
-        }, []);
+        }, [panelSession]);
 
         useEffect(
           function () {
@@ -1326,7 +1361,7 @@
             var misses = 0;
             var poll = async function () {
               try {
-                var data = await requestJson('/state', { timeoutMs: POLL_TIMEOUT_MS });
+                var data = await requestJson('/state', { timeoutMs: POLL_TIMEOUT_MS, session: panelSession });
                 if (cancelled) return;
                 misses = 0;
                 setReachable(true);
@@ -1352,7 +1387,59 @@
               if (timer) window.clearTimeout(timer);
             };
           },
-          [],
+          [panelSession],
+        );
+
+        // When this pane becomes visible, its workspace's active tab must be
+        // the Chrome foreground tab and the live picture must restart. Hidden
+        // Session panes stay mounted, so polling alone cannot tell the host.
+        useEffect(
+          function () {
+            var root = rootRef.current;
+            if (!root) return undefined;
+            var lastPing = 0;
+            var ping = function () {
+              var now = Date.now();
+              if (now - lastPing < 900) return;
+              lastPing = now;
+              void requestJson('/focus', { method: 'POST', session: panelSession })
+                .then(function (data) {
+                  if (data && data.state) {
+                    stateJsonRef.current = JSON.stringify(data.state);
+                    setState(data.state);
+                    setReachable(true);
+                  }
+                })
+                .catch(function () {
+                  /* the regular state poll owns reachability */
+                });
+            };
+            var observer =
+              typeof IntersectionObserver === 'function'
+                ? new IntersectionObserver(
+                    function (entries) {
+                      for (var index = 0; index < entries.length; index += 1) {
+                        if (entries[index].isIntersecting) {
+                          ping();
+                          return;
+                        }
+                      }
+                    },
+                    { threshold: 0.1 },
+                  )
+                : null;
+            if (observer !== null) observer.observe(root);
+            var onVisible = function () {
+              if (document.visibilityState === 'visible') ping();
+            };
+            document.addEventListener('visibilitychange', onVisible);
+            ping();
+            return function () {
+              if (observer !== null) observer.disconnect();
+              document.removeEventListener('visibilitychange', onVisible);
+            };
+          },
+          [panelSession],
         );
 
         useEffect(
@@ -1444,7 +1531,7 @@
             };
 
             var pump = async function () {
-              var response = await fetch(API + '/stream?r=' + streamRetry, {
+              var response = await fetch(API + '/stream?r=' + streamRetry + (panelSession === '' ? '' : '&session=' + encodeURIComponent(panelSession)), {
                 signal: controller.signal,
                 cache: 'no-store',
               });
@@ -1499,12 +1586,12 @@
               }
             };
           },
-          [state.running, state.startedAt, streamRetry],
+          [state.running, state.startedAt, streamRetry, panelSession],
         );
 
         var refreshState = useCallback(async function () {
           try {
-            var data = await requestJson('/state');
+            var data = await requestJson('/state', { session: panelSession });
             setReachable(true);
             if (data.state) {
               stateJsonRef.current = JSON.stringify(data.state);
@@ -1513,14 +1600,14 @@
           } catch {
             setReachable(false);
           }
-        }, []);
+        }, [panelSession]);
 
         var run = useCallback(
           async function (label, path, body) {
             setBusy(label);
             setError('');
             try {
-              var data = await requestJson(path, { method: 'POST', body: body || {} });
+              var data = await requestJson(path, { method: 'POST', session: panelSession, body: body || {} });
               if (data && data.state) {
                 stateJsonRef.current = JSON.stringify(data.state);
                 setState(data.state);
@@ -1534,7 +1621,7 @@
               setBusy('');
             }
           },
-          [],
+          [panelSession],
         );
 
         // Geometry of the picture in CSS pixels, read on demand (never cached).
@@ -2018,7 +2105,7 @@
               if (cancelled) return;
               controller = new AbortController();
               try {
-                var response = await fetch(API + '/events?r=' + (state.startedAt || 0), {
+                var response = await fetch(API + '/events?r=' + (state.startedAt || 0) + (panelSession === '' ? '' : '&session=' + encodeURIComponent(panelSession)), {
                   signal: controller.signal,
                   cache: 'no-store',
                 });
@@ -2077,7 +2164,7 @@
               }
             };
           },
-          [state.running, state.startedAt],
+          [state.running, state.startedAt, panelSession],
         );
 
         var clickCountFor = function (point) {
@@ -2769,7 +2856,7 @@
         };
 
         var postPage = function (body) {
-          return requestJson('/page', { method: 'POST', body: body }).then(
+          return requestJson('/page', { method: 'POST', session: panelSession, body: body }).then(
             function (data) {
               if (data && data.state) {
                 stateJsonRef.current = JSON.stringify(data.state);
@@ -2786,7 +2873,7 @@
         };
 
         var postConsole = function (body) {
-          return requestJson('/console', { method: 'POST', body: body }).then(
+          return requestJson('/console', { method: 'POST', session: panelSession, body: body }).then(
             function (data) {
               if (data && data.state) {
                 stateJsonRef.current = JSON.stringify(data.state);
@@ -2874,7 +2961,7 @@
         var openPageExternal = function (page) {
           var link = pageLink(page);
           if (link === '') return;
-          requestJson('/external', { method: 'POST', body: { url: link } }).then(
+          requestJson('/external', { method: 'POST', session: panelSession, body: { url: link } }).then(
             function () {
               showToast(t('toast.externalOpened'));
             },
@@ -3239,19 +3326,9 @@
           [followOn, run],
         );
 
-        // A panel that goes away must not leave the browser in takeover mode.
-        useEffect(
-          function () {
-            return function () {
-              if (!followRef.current) return;
-              followRef.current = false;
-              void requestJson('/follow', { method: 'POST', body: { on: false } }).catch(function () {
-                /* the host drops the mode with the next panel anyway */
-              });
-            };
-          },
-          [],
-        );
+        // Takeover is remembered per workspace. Closing or switching the panel
+        // must not clear it: the same workspace's next Session should open with
+        // the same follow state, and the Agent may still be driving the tabs.
 
         var toggleFollow = function () {
           void run('follow', '/follow', { on: !followOn });

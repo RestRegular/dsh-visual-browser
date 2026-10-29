@@ -67,7 +67,12 @@ function makeManager({ running = true } = {}) {
       return { running, url: 'https://demo.test/', startedAt: 12, actionSeq: 3, follow: this.follow === true, actions: [] };
     },
     framesListener: null,
-    subscribeFrames(listener) {
+    subscribeFrames(scope, listener) {
+      if (typeof scope === 'function') {
+        listener = scope;
+        scope = 'default';
+      }
+      this.framesScope = scope;
       this.framesListener = listener;
       this.calls.subscribed = (this.calls.subscribed ?? 0) + 1;
       return () => {
@@ -76,7 +81,12 @@ function makeManager({ running = true } = {}) {
       };
     },
     activityListener: null,
-    subscribeActivity(listener) {
+    subscribeActivity(scope, listener) {
+      if (typeof scope === 'function') {
+        listener = scope;
+        scope = 'default';
+      }
+      this.activityScope = scope;
       this.activityListener = listener;
       this.calls.activitySubscribed = (this.calls.activitySubscribed ?? 0) + 1;
       return () => {

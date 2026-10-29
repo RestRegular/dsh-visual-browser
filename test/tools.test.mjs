@@ -94,7 +94,7 @@ function tool(tools, name) {
   const tools = browserTools(manager, ctx);
   const act = tool(tools, 'browser_act');
   const value = await act.execute({ action: 'click', ref: 1, delay_ms: 0 }, exec);
-  assert.deepEqual(manager.calls.act[0].options, { source: 'agent' });
+  assert.deepEqual(manager.calls.act[0].options, { source: 'agent', scope: 'default' });
   assert.equal(manager.calls.shots.length, 1, 'one picture per acting call');
   assert.equal(manager.calls.shots[0].format, 'jpeg', 'the merged shot is jpeg');
   assert.ok(value.text.startsWith('OK: click [1]'), 'the summary comes first');

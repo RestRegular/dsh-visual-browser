@@ -1,9 +1,11 @@
 # dsh-visual-browser bundle patch.
 #
-# One Host row: it owns the Chrome process, the five browser tools, and the
+# One Host row: it owns the Chrome process, the browser tools, and the
 # same-origin `/visual-browser/api` route that feeds the panel (live frame,
-# operation timeline, click-through). The Client half ships in the same
-# package and is loaded by the Web module graph from `dsh.client`.
+# operation timeline, click-through). Tabs, history, console, live streams and
+# the Follow flag are scoped by the calling Session's workspace. The Client half
+# ships in the same package and is loaded by the Web module graph from
+# `dsh.client`.
 #
 # `name` must be byte-for-byte the package.json name: the client module graph
 # locates the package by the Loader row name.

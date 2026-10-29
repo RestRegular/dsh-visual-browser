@@ -5,6 +5,10 @@ A DeepSeek Harness plugin that gives the Agent a **real Chrome** and gives you a
 - The Agent never reads the DOM. It reads a numbered list of *visible interactive
   elements* plus a short text excerpt — a few hundred tokens per page instead of a
   full DOM snapshot.
+- **One tab strip per workspace.** Sessions in the same workspace share the
+  strip and the Follow flag; another workspace's pages are invisible (and
+  unaddressable) from here. `browser_open` puts a URL in a new tab of the
+  calling workspace.
 - The tab streams Chrome's own screencast (CDP `Page.startScreencast`) as a
   length-prefixed JPEG stream, decoded off the main thread onto a canvas. No
   screenshot polling, no per-frame request, no re-render of the panel per frame.
@@ -128,6 +132,12 @@ operation ends. Every drawn element scales with the displayed picture, so the
 panel looks right whether the sidebar is narrow or wide. `prefers-reduced-motion`
 shortens the animations without removing the lock.
 
+### Workspaces
+
+Each **workspace** owns its own tab strip, even though every tab is a real page of the same Chrome. A page opened from a Session is visible in that Session and in every other Session of the same workspace; Sessions in another workspace (or a Session that is not in a workspace at all) never list it, never stream it, and cannot address it by page id. The address-box history, the page console and the Follow flag are scoped the same way. Switching to a Session of another workspace makes that workspace's active tab the foreground page (and restarts its live picture), so two workspaces never borrow each other's picture.
+
+The workspace is resolved on the host from the Session that opened the tab: the panel sends its Session id, and the agent tools resolve the executing Session. A Session outside every workspace is isolated to itself.
+
 ### Tabs the page opens
 
 A link or button with `target="_blank"` (or `window.open`) is not left
@@ -149,7 +159,7 @@ only literal colour in the bundle is the `#fff` fallback after
 
 | Tool | Purpose |
 | --- | --- |
-| `browser_open` | Open a URL (launches Chrome on first use) and return the numbered view. |
+| `browser_open` | Open a URL in a new tab of the current workspace (launches Chrome on first use) and return the numbered view. A fresh workspace's blank tab is reused for its first open. |
 | `browser_see` | Fresh numbered view of the current page. |
 | `browser_act` | `click` / `upload` / `drag` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view **and, by default, a picture of the result in the same answer** — the old “click, screenshot, read_image” is one call. `screenshot: false` skips the picture, `read: false` only saves it, `delay_ms` waits before the shot. |
 | `browser_text` | Read text of the page or of one element (a link also returns its `href`). |
@@ -166,7 +176,10 @@ operations then decide what you see: whichever tab it reads or acts on becomes
 the active page, so the live picture switches to it by itself (this also holds
 for `browser_cdp`, as long as the command names its `page`). Leave with **Esc**
 or the **退出跟随 / Stop following** button on the sheet; closing the panel
-leaves the mode too.
+leaves the mode in force, because Follow is remembered per workspace and the
+next Session of that workspace opens with it still set. The Agent can keep the
+tabs of another workspace moving without locking this panel: follow, the lock
+veil and the pointer cues are routed by workspace.
 
 ### Native controls: the parts that are not page content
 
@@ -293,11 +306,12 @@ Chrome is killed with its process tree when the plugin unloads.
   it performs no extra authentication, matching the other local panel routes.
 - The stream is a raw binary response on purpose: `multipart/x-mixed-replace`
   parsing differs between browser builds, so the panel parses frames itself.
-- The model-facing tools act on the **active page**: `browser_open` navigates it
-  and every read/act applies to it, so "the current page" stays unambiguous while
-  you keep other pages open in the tab strip. In takeover mode the tools'
-  `page` argument also moves the active page, which is how the panel follows the
-  Agent.
+- The model-facing tools act on the **active page of the calling Session's
+  workspace**: `browser_open` opens a new tab there and every read/act applies
+  to that workspace's active page, so "the current page" stays unambiguous
+  while other workspaces keep their own strips. In takeover mode the tools'
+  `page` argument also moves that workspace's active page, which is how the
+  panel follows the Agent.
 - Requests time out and the panel always retries, so a connection that a sleep
   or a host restart black-holed recovers on its own instead of needing a page
   refresh.
