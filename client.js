@@ -2978,6 +2978,13 @@
           return short === '' || page.url === 'about:blank' ? t('tab.untitled') : short;
         };
 
+        // "Running" is Chrome as a whole; the manager keeps one Chrome for every
+        // workspace, so stopping here leaves that flag on while this tab has no
+        // page left. The panel is up for this workspace only when it has a page:
+        // otherwise the stage kept the last frame of a stopped page — a dead
+        // picture that no click could reach.
+        var browserUp = state.running === true && pages.length > 0;
+
         var openNewPage = function () {
           void run('new-page', '/page', { action: 'new' }).then(function () {
             window.setTimeout(function () {
@@ -2988,6 +2995,18 @@
               }
             }, 80);
           });
+        };
+
+        // The guide's primary button. "Start" means "give this workspace a
+        // page": Chrome may already be running for another workspace, so an
+        // empty box has to open a page here instead of only nudging the shared
+        // process (which left this tab with nothing to show but a dead picture).
+        var startBrowser = function () {
+          if (draft.trim() !== '') {
+            openOrStart();
+            return;
+          }
+          openNewPage();
         };
 
         var showToast = function (text) {
@@ -3632,7 +3651,7 @@
                   className: 'dvb-tab-add',
                   title: t('tab.new'),
                   'aria-label': t('tab.new'),
-                  disabled: !state.running || Boolean(busy) || locked,
+                  disabled: !browserUp || Boolean(busy) || locked,
                   onClick: openNewPage,
                 },
                 icon('plus', 14),
@@ -3672,7 +3691,7 @@
                 className: 'dvb-btn',
                 title: t('action.back'),
                 'aria-label': t('action.back'),
-                disabled: !state.running || Boolean(busy) || locked,
+                disabled: !browserUp || Boolean(busy) || locked,
                 onClick: function () {
                   void run('back', '/nav', { action: 'back' });
                 },
@@ -3686,7 +3705,7 @@
                 className: 'dvb-btn',
                 title: t('action.forward'),
                 'aria-label': t('action.forward'),
-                disabled: !state.running || Boolean(busy) || locked,
+                disabled: !browserUp || Boolean(busy) || locked,
                 onClick: function () {
                   void run('forward', '/nav', { action: 'forward' });
                 },
@@ -3700,7 +3719,7 @@
                 className: 'dvb-btn',
                 title: t('action.reload'),
                 'aria-label': t('action.reload'),
-                disabled: !state.running || Boolean(busy) || locked,
+                disabled: !browserUp || Boolean(busy) || locked,
                 onClick: function () {
                   void run('reload', '/nav', { action: 'reload' });
                 },
@@ -3866,12 +3885,12 @@
                   className: 'dvb-btn',
                   title: t('tab.new'),
                   'aria-label': t('tab.new'),
-                  disabled: !state.running || Boolean(busy) || locked,
+                  disabled: !browserUp || Boolean(busy) || locked,
                   onClick: openNewPage,
                 },
                 icon('plus', 16),
               ),
-              state.running
+              browserUp
                 ? h(
                     'button',
                     {
@@ -3893,7 +3912,7 @@
                       className: 'dvb-btn',
                       'data-variant': 'primary',
                       disabled: Boolean(busy) || locked,
-                      onClick: openOrStart,
+                      onClick: startBrowser,
                     },
                     icon('play', 14),
                     t('action.start'),
@@ -3923,7 +3942,7 @@
                 event.preventDefault();
               },
             },
-            state.running
+            browserUp
               ? h('canvas', {
                   ref: canvasRef,
                   className: 'dvb-live',
@@ -3951,7 +3970,7 @@
                   h('div', { className: 'dvb-empty-title' }, t('empty.title')),
                   h('div', { className: 'dvb-empty-desc' }, t('empty.desc')),
                 ),
-            state.running && !live
+            browserUp && !live
               ? h('div', { key: 'veil', className: 'dvb-veil' }, t(retrying ? 'error.frame' : 'connecting'))
               : null,
             // Out of the flow on purpose: it must never reflow the picture under
@@ -3965,7 +3984,7 @@
               : null,
             // The picture recovering must never block the page: the veil is
             // click-through and only this pill takes the pointer.
-            state.running && retrying
+            browserUp && retrying
               ? h(
                   'button',
                   { key: 'retry', type: 'button', className: 'dvb-retry', title: t('action.reconnect'), onClick: retryStream },
@@ -3976,7 +3995,7 @@
             // While an Agent tool is acting, a tinted veil covers the picture
             // and swallows the user's pointer; the drawn cursor and the action
             // graphics stay on top of it.
-            state.running
+            browserUp
               ? h(
                   'div',
                   {
@@ -4183,7 +4202,7 @@
                       className: 'dvb-console-input',
                       type: 'text',
                       spellCheck: false,
-                      disabled: !state.running || locked || consoleBusy,
+                      disabled: !browserUp || locked || consoleBusy,
                       placeholder: t('console.placeholder'),
                       value: consoleDraft,
                       'aria-label': t('console.input'),
@@ -4201,7 +4220,7 @@
                       {
                         type: 'button',
                         className: 'dvb-console-run',
-                        disabled: consoleDraft.trim() === '' || consoleBusy || !state.running || locked,
+                        disabled: consoleDraft.trim() === '' || consoleBusy || !browserUp || locked,
                         onClick: runConsole,
                       },
                       consoleBusy ? '…' : t('console.run'),
