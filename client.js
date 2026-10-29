@@ -548,6 +548,22 @@
         return title + ' - ' + host;
       }
 
+      /** Normalise a url for the history list: no scheme, no www, no trailing slash. */
+      function historyKey(value) {
+        return String(value || '')
+          .trim()
+          .toLowerCase()
+          .replace(/^[a-z][a-z0-9+.-]*:\/\//, '')
+          .replace(/^www\./, '')
+          .replace(/\/+$/, '');
+      }
+
+      /** True when the box already holds exactly this entry's url. */
+      function historyExactMatch(entry, query) {
+        var needle = historyKey(query);
+        return needle !== '' && historyKey(entry && entry.url) === needle;
+      }
+
       /**
        * Prefix match for the history dropdown: an empty box shows everything, a
        * filled one narrows to urls/titles that start with what was typed. The
@@ -1510,8 +1526,10 @@
                 setState(data.state);
                 setReachable(true);
               }
+              return data;
             } catch (failure) {
               setError(failure && failure.message ? failure.message : String(failure));
+              return null;
             } finally {
               setBusy('');
             }
@@ -2349,13 +2367,21 @@
           toDraftEnd();
         };
 
-        // Open the picked row: the url goes to the host and the list closes.
+        // Open the picked row: the url fills the box immediately and is submitted
+        // right away, the way pressing Enter on it would. `dirty` stays on until
+        // the host answers, so a slow (or failed) navigation cannot snap the box
+        // back to the old page before the user sees what was picked.
         var pickHistory = function (entry) {
-          setDirty(false);
           setHistoryOpen(false);
           setHistoryIndex(-1);
+          setDirty(true);
           setDraft(entry.url);
-          void run('open', '/start', { url: entry.url });
+          toDraftEnd();
+          void run('open', '/start', { url: entry.url }).then(function (data) {
+            // Landing on the page lets the box follow it again; a failure keeps
+            // the picked url in place so it can be fixed and resubmitted.
+            if (data) setDirty(false);
+          });
         };
 
         // Forget one row (its × button, or Delete on the highlighted row). The
@@ -3130,11 +3156,17 @@
         // still opens instantly.
         var historyList = useMemo(
           function () {
+            var typed = String(historyQuery || '').trim();
+            // A perfect hit needs no panel: the box already holds a url this
+            // browser has visited, so Enter submits it as it is.
+            if (typed !== '' && historyEntries.some(function (entry) { return historyExactMatch(entry, typed); })) {
+              return [];
+            }
             var matches =
-              historyQuery === ''
+              typed === ''
                 ? historyEntries
                 : historyEntries.filter(function (entry) {
-                    return historyPrefixMatch(entry, historyQuery);
+                    return historyPrefixMatch(entry, typed);
                   });
             return matches.slice(0, HISTORY_ROWS);
           },
@@ -3464,7 +3496,11 @@
                           role: 'option',
                           'aria-selected': String(index === historyIndex),
                           title: entry.url,
-                          onMouseDown: function (event) {
+                          // Pointerdown, not mousedown: every mouse, pen and touch
+                          // produces it, and it lands before focus can move, so the
+                          // click cannot be lost to the input's blur handler.
+                          onPointerDown: function (event) {
+                            if (event.button !== undefined && event.button !== 0) return;
                             event.preventDefault();
                             pickHistory(entry);
                           },
@@ -3479,7 +3515,8 @@
                             title: t('history.remove'),
                             'aria-label': t('history.remove'),
                             // Removing must not also open the row underneath.
-                            onMouseDown: function (event) {
+                            onPointerDown: function (event) {
+                              if (event.button !== undefined && event.button !== 0) return;
                               event.preventDefault();
                               event.stopPropagation();
                               forgetHistory(entry);

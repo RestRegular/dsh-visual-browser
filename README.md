@@ -68,9 +68,11 @@ dependencies; it talks CDP over the built-in WebSocket).
 **Address-box history** — focusing the box opens a list of the pages this
 browser has visited, on every tab and not just a fresh one: the whole history
 when the box is empty, and only entries that start with what you typed
-otherwise (the scheme and a leading `www.` are ignored). Each row is one line,
-“title - example.com”, cut with an ellipsis. ↑/↓ walk the list and write the
-picked URL into the box, Enter opens it, Esc closes the list and restores the
+otherwise (the scheme and a leading `www.` are ignored). A perfect match closes
+the list — there is nothing left to suggest, so Enter just submits what is in
+the box. Each row is one line, “title - example.com”, cut with an ellipsis;
+clicking a row fills the box and opens it in one go. ↑/↓ walk the list and write
+the picked URL into the box, Enter opens it, Esc closes the list and restores the
 box. Hovering a row reveals a × that forgets just that entry (Delete does the
 same for the highlighted row); the page itself stays open.
 
