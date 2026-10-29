@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { formatSnapshot, describeAction, scrollProgress } from '../lib/format.js';
+import { formatSnapshot, describeAction, scrollProgress, wellFormedText, clipEnd } from '../lib/format.js';
 
 const snapshot = {
   url: 'https://demo.test/login',
@@ -58,5 +58,16 @@ assert.equal(describeAction(null), '');
 // Scroll progress
 assert.equal(scrollProgress(snapshot), Math.round((400 / (2400 - 800)) * 100));
 assert.equal(scrollProgress({ scrollY: 0, docHeight: 700, viewport: { height: 800 } }), 0);
+
+// Truncation and the model boundary: half an emoji can never leave the plugin.
+// It cannot be encoded as UTF-8, so the provider rejects the whole request.
+assert.equal(clipEnd('1234😀', 6), '1234😀');
+assert.equal(clipEnd('1234😀', 5), '1234');
+assert.equal(clipEnd('abc', 0), '');
+assert.equal(wellFormedText('本局 0 张 \ud83c…'), '本局 0 张 \uFFFD…');
+assert.equal(wellFormedText('ok 😀'), 'ok 😀');
+assert.equal(wellFormedText(null), '');
+assert.equal(wellFormedText(undefined), '');
+assert.equal(wellFormedText(String.fromCharCode(0xdc00) + 'x'), '\uFFFDx');
 
 console.log('format.test.mjs ok');

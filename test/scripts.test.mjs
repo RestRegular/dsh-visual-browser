@@ -292,6 +292,38 @@ assert.equal(notANative.ok, false);
 assert.equal(notANative.reason, 'not-found');
 assert.equal(run(setNativeValueExpression({ selector: '#phone', value: 'x' })).reason, 'not-found');
 
+// ---------------------------------------------------------------------------
+// truncation never splits a surrogate pair
+// ---------------------------------------------------------------------------
+
+// Half an emoji cannot be encoded as UTF-8: the request body carries an invalid
+// escape, the provider rejects it with 400 INVALID_REQUEST, and every later turn
+// of that session fails the same way because the message is already logged.
+const hasLoneSurrogate = (value) => {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1);
+      if (!(next >= 0xdc00 && next <= 0xdfff)) return true;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      const previous = value.charCodeAt(index - 1);
+      if (!(previous >= 0xd800 && previous <= 0xdbff)) return true;
+    }
+  }
+  return false;
+};
+
+// 38 ASCII chars, then an emoji whose high surrogate lands exactly on the cut.
+document.body.innerText = `${'A'.repeat(38)}😀BBBB`;
+const splitSnapshot = run(snapshotExpression({ maxTextChars: 40 }));
+assert.equal(splitSnapshot.text, `${'A'.repeat(38)}…`, 'the cut drops the whole emoji, not half of it');
+assert.ok(!hasLoneSurrogate(splitSnapshot.text));
+
+document.body.innerText = `${'A'.repeat(9)}😀B`;
+const splitText = run(readTextExpression({ maxChars: 10 }));
+assert.equal(splitText.text, 'A'.repeat(9));
+assert.ok(!hasLoneSurrogate(splitText.text));
+
 // The hidden file input is what an upload falls back to.
 assert.equal(run(fileInputExpression({})), fileInput);
 assert.equal(run(fileInputExpression({ selector: '#date' })), fileInput, 'a page with a doomed selector still finds the input');
