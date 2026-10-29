@@ -207,6 +207,9 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
 - id: dsh-visual-browser
   config:
     headless: true            # false = visible Chrome window
+    stealth: true             # look like a normal Chrome (see below); false = raw automation
+    userAgent: ''             # explicit UA; default: the installed build's own
+    extraArgs: []             # extra Chrome switches, appended last
     executablePath: ''        # explicit chrome.exe path
     userDataDir: ''           # default: ~/.dsh/visual-browser/chrome-profile
     viewport:
@@ -273,6 +276,37 @@ Chrome is killed with its process tree when the plugin unloads.
   refresh.
 - Headless mode is the default. Some sites behave differently headless; set
   `headless: false` when a site insists on a window.
+
+## Looking like an ordinary browser
+
+A page can tell a driven browser apart, and sites that bind a session to the
+browser they handed it to kill that session once they see it. With `stealth:
+true` (the default) the command line is built so the page sees a normal Chrome:
+
+| Tell | Without stealth | With stealth |
+| --- | --- | --- |
+| `navigator.webdriver` | `true` — a remote debugging session counts as automation | `false` (`--disable-blink-features=AutomationControlled`) |
+| `navigator.userAgent` | `… HeadlessChrome/155.0.0.0 …` | the installed build's own: `… Chrome/155.0.0.0 …` |
+| `screen.width/height` | `800x600`, smaller than the window | `1920x1080` (a desktop screen larger than the viewport) |
+| Background timers | throttled to 1 Hz when occluded, stalling session keep-alives | left at full rate |
+
+The User-Agent version is read from the installed browser before launch (Chrome's
+registry `BLBeacon` on Windows, `Info.plist` on macOS, `--version` on Linux) and
+is Chrome's own reduced form (`<major>.0.0.0`), so it agrees with
+`navigator.userAgentData` — an inconsistent pair is itself a fingerprint. When
+the build cannot be read that way, the browser is asked over CDP after starting
+and the same User-Agent is stamped on every target instead.
+
+This is what makes a long-lived login on [doubao.com](https://www.doubao.com)
+survive: before 0.10.0 every page it saw reported `webdriver: true` and the
+headless User-Agent, and ByteDance's risk control signed the session out seconds
+after it succeeded. If a profile was already through that mill, its stored device
+id may be burnt: stop the browser and delete
+`~/.dsh/visual-browser/chrome-profile` (or point `userDataDir` at a new
+directory) so the next login starts from a clean identity.
+
+`stealth: false` restores the raw automation command line, and `extraArgs` adds
+your own switches after the built-in ones when a site needs something specific.
 
 ## Development
 
