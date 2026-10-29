@@ -47,10 +47,11 @@ dependencies; it talks CDP over the built-in WebSocket).
    extra row beneath it. The tab opens and replaces the guide in that pane.
 2. Ask the Agent something that needs a website, for example
    *"打开 example.com 看看首页写了什么"*. The Agent calls `browser_open`.
-3. Watch the picture. Click, drag, wheel and type straight into it; the toolbar
-   has back / forward / reload / **new page** / stop, and the address bar opens
-   any URL. A tab strip always sits under the toolbar (even with one page): ＋
-   adds a page, a chip switches to it, its × closes it (the last page stays).
+3. Watch the picture. Click, drag, wheel and type straight into it. The tab strip
+   sits above the toolbar; the toolbar below it carries the address box (type a
+   URL and press Enter) plus back / forward / reload / **new page** / stop. A
+   tab strip always shows (even with one page): ＋ adds a page, a chip switches
+   to it, its × closes it (the last page stays).
    The whole rounded chip is the hit area — a click anywhere on it (padding,
    icon, title) switches pages, and dragging from anywhere on it reorders the
    strip (the × keeps its own click and close). Right-click a chip for refresh /

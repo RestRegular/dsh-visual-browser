@@ -70,9 +70,6 @@
       'connecting': '正在连接画面…',
       'console.title': '页面 Console',
       'console.empty': '页面还没有输出。在下面输入脚本按 Enter 运行，网页自身的 console 输出也会实时显示在这里。',
-      'ops.title': '操作记录',
-      'ops.empty': '还没有操作记录。每次用工具操作浏览器都会出现在这里，点击可跳到对应的标签页。',
-      'ops.noTarget': '这条记录没有对应的标签页',
       'console.resize': '上下拖动调整控制台高度，双击复位',
       'console.collapse': '折叠控制台',
       'console.expand': '展开控制台',
@@ -162,9 +159,6 @@
       'connecting': 'Connecting the picture…',
       'console.title': 'Page Console',
       'console.empty': 'No page output yet. Run a script below with Enter; the page’s own console output shows up here live.',
-      'ops.title': 'Operations',
-      'ops.empty': 'No operations yet. Each time a tool drives the browser it appears here; click one to jump to its tab.',
-      'ops.noTarget': 'This record has no tab to jump to',
       'console.resize': 'Drag up or down to resize the console; double-click to reset',
       'console.collapse': 'Collapse the console',
       'console.expand': 'Expand the console',
@@ -220,20 +214,16 @@
   var CSS = [
     // ---- tab body -------------------------------------------------------
     '.dvb-root{position:relative;display:flex;flex-direction:column;width:100%;height:100%;min-height:0;overflow:hidden;background:var(--dsw-alias-bg-base);color:var(--dsw-alias-label-primary);font-size:13px;line-height:1.5}',
-    '.dvb-bar{flex:none;display:flex;align-items:center;gap:6px;padding:8px 10px 6px;min-width:0}',
-    '.dvb-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--dsw-alias-state-idle-primary,var(--dsw-alias-border-l3))}',
-    '.dvb-dot[data-on="true"]{background:var(--dsw-alias-state-success-primary)}',
-    '.dvb-dot[data-error="true"]{background:var(--dsw-alias-state-error-primary)}',
+    '.dvb-bar{flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 8px;min-width:0}',
     '.dvb-spacer{flex:1 1 auto;min-width:6px}',
     '.dvb-status{font-size:11.5px;color:var(--dsw-alias-label-secondary);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '.dvb-title{font-weight:600;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}',
     '.dvb-tools{display:flex;align-items:center;gap:2px;flex:none}',
     '.dvb-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:26px;min-width:26px;padding:0 7px;border-radius:7px;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);cursor:pointer;font:inherit;font-size:12px}',
     '.dvb-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover);color:var(--dsw-alias-label-primary)}',
     '.dvb-btn:disabled{opacity:.4;cursor:default}',
     '.dvb-btn[data-variant="primary"]{background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);padding:0 10px}',
     '.dvb-btn[data-variant="primary"]:hover:not(:disabled){background:var(--dsw-alias-brand-primary);color:var(--dsw-alias-label-primary-foreground,#fff);filter:brightness(1.06)}',
-    '.dvb-tabs{position:relative;flex:none;display:flex;align-items:center;gap:4px;margin:-4px 0 -4px;padding:6px 8px 10px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overflow-anchor:none}',
+    '.dvb-tabs{position:relative;flex:none;display:flex;align-items:center;gap:4px;padding:8px 8px 4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;overflow-anchor:none}',
     '.dvb-tab{position:relative;flex:none;display:flex;align-items:center;gap:2px;height:26px;padding:0 3px 0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .17s cubic-bezier(.2,0,0,1);touch-action:none;user-select:none;-webkit-user-select:none}',
     '.dvb-tab:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
     '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));border-color:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary)}',
@@ -259,13 +249,11 @@
     '.dvb-menu-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l3)}',
     '.dvb-toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:70;max-width:calc(100% - 24px);padding:6px 12px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font-size:11.5px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none;animation:dvb-toast-in .16s ease-out}',
     '@keyframes dvb-toast-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}',
-    '.dvb-addr{flex:none;display:flex;align-items:center;gap:6px;padding:0 10px 8px;min-width:0}',
     '.dvb-input{flex:1 1 auto;min-width:0;height:28px;padding:0 9px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}',
     '.dvb-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
     '.dvb-input:focus{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-1px}',
     // ---- address box + browsing history dropdown ------------------------
     '.dvb-addr-box{position:relative;flex:1 1 auto;min-width:0;display:flex;align-items:center}',
-    '.dvb-addr-blank .dvb-input{height:34px;font-size:13px}',
     '.dvb-history{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;max-height:280px;overflow-y:auto;padding:4px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 30px rgba(0,0,0,.28)}',
     '.dvb-history-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;font:inherit}',
     '.dvb-history-item:hover,.dvb-history-item-on{background:var(--dsw-alias-interactive-bg-hover)}',
@@ -339,19 +327,6 @@
     '.dvb-console-row[data-level="result"] .dvb-console-text{color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}',
     '.dvb-console-row[data-level="warn"] .dvb-console-text,.dvb-console-row[data-level="warn"] .dvb-console-level{color:var(--dsw-alias-state-warning-primary,var(--dsw-alias-label-primary))}',
     '.dvb-console-row[data-level="error"] .dvb-console-text{color:var(--dsw-alias-state-error-primary)}',
-    // ---- operations list (click-through to its tab) ----------------------
-    '.dvb-log-tabs{display:inline-flex;align-items:center;gap:2px;margin-left:2px}',
-    '.dvb-log-tab{padding:2px 8px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;line-height:1.6;cursor:pointer}',
-    '.dvb-log-tab:hover{color:var(--dsw-alias-label-primary)}',
-    '.dvb-log-tab-on{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));color:var(--dsw-alias-label-primary)}',
-    '.dvb-op-row{display:grid;grid-template-columns:52px 86px minmax(0,1fr);align-items:start;gap:6px;width:100%;padding:4px 6px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:11.5px/1.5 system-ui;text-align:left;cursor:pointer;min-width:0}',
-    '.dvb-op-row:hover{background:var(--dsw-alias-interactive-bg-hover)}',
-    '.dvb-op-row:disabled{opacity:.55;cursor:default}',
-    '.dvb-op-row[data-ok="false"] .dvb-op-kind{color:var(--dsw-alias-state-error-primary)}',
-    '.dvb-op-time{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.65;white-space:nowrap}',
-    '.dvb-op-kind{font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-    '.dvb-op-target{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}',
-    '.dvb-op-detail{grid-column:1 / -1;color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.dvb-console-row[data-level="error"] .dvb-console-level{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,transparent)}',
     '.dvb-console-input-row{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:6px;margin:2px -6px 0;padding:6px 8px;border-top:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base)}',
     '.dvb-console-prompt{flex:none;color:var(--dsw-alias-label-tertiary);font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,monospace}',
@@ -951,7 +926,6 @@
         viewport: { width: 1280, height: 800 },
         startedAt: 0,
         actionSeq: 0,
-        actions: [],
         agentBusy: false,
         allowUserControl: true,
         lastError: '',
@@ -1131,7 +1105,6 @@
         var [draft, setDraft] = useState('');
         var [dirty, setDirty] = useState(false);
         var [logOpen, setLogOpen] = useState(readStoredLogOpen);
-        var [logTab, setLogTab] = useState('console');
         var [logHeight, setLogHeight] = useState(readStoredLogHeight);
         var [resizing, setResizing] = useState(false);
         var [consoleDraft, setConsoleDraft] = useState('');
@@ -3023,17 +2996,8 @@
           });
         };
 
-        var statusText = !reachable
-          ? t('state.offline')
-          : state.starting
-            ? t('state.starting')
-            : state.running
-              ? t('state.running')
-              : t('state.stopped');
-
         var consoleEntries = Array.isArray(state.console) ? state.console : [];
         var historyEntries = Array.isArray(state.history) ? state.history : [];
-        var actions = Array.isArray(state.actions) ? state.actions : [];
         // A "start tab": the active page still sits on about:blank and the
         // panel switches to the minimal new-tab layout (URL box only).
         var activeIsBlank =
@@ -3048,109 +3012,8 @@
         return h(
           'div',
           { className: 'dvb-root', ref: rootRef },
-          h(
-            'div',
-            { key: 'bar', className: 'dvb-bar' },
-            h('span', {
-              className: 'dvb-dot',
-              'data-on': String(state.running),
-              'data-error': String(!reachable),
-              title: statusText + (state.headless ? ' · headless' : ''),
-            }),
-            h(
-              'span',
-              { className: 'dvb-title', title: state.title || state.url || t('panel.title') },
-              activeIsBlank ? t('panel.title') : state.title || shortUrl(state.url) || t('panel.title'),
-            ),
-            h('span', { className: 'dvb-spacer' }),
-            busy ? h('span', { className: 'dvb-status' }, t('busy')) : null,
-            h(
-              'div',
-              { className: 'dvb-tools' },
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dvb-btn',
-                  title: t('action.back'),
-                  'aria-label': t('action.back'),
-                  disabled: !state.running || Boolean(busy) || locked,
-                  onClick: function () {
-                    void run('back', '/nav', { action: 'back' });
-                  },
-                },
-                icon('back', 16),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dvb-btn',
-                  title: t('action.forward'),
-                  'aria-label': t('action.forward'),
-                  disabled: !state.running || Boolean(busy) || locked,
-                  onClick: function () {
-                    void run('forward', '/nav', { action: 'forward' });
-                  },
-                },
-                icon('forward', 16),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dvb-btn',
-                  title: t('action.reload'),
-                  'aria-label': t('action.reload'),
-                  disabled: !state.running || Boolean(busy) || locked,
-                  onClick: function () {
-                    void run('reload', '/nav', { action: 'reload' });
-                  },
-                },
-                icon('reload', 16),
-              ),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'dvb-btn',
-                  title: t('tab.new'),
-                  'aria-label': t('tab.new'),
-                  disabled: !state.running || Boolean(busy) || locked,
-                  onClick: openNewPage,
-                },
-                icon('plus', 16),
-              ),
-              state.running
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dvb-btn',
-                      title: t('action.stop'),
-                      'aria-label': t('action.stop'),
-                      disabled: Boolean(busy) || locked,
-                      onClick: function () {
-                        void run('stop', '/stop', {});
-                      },
-                    },
-                    icon('stop', 16),
-                  )
-                : h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dvb-btn',
-                      'data-variant': 'primary',
-                      disabled: Boolean(busy) || locked,
-                      onClick: openOrStart,
-                    },
-                    icon('play', 14),
-                    t('action.start'),
-                  ),
-            ),
-          ),
-          // Always visible, even with one page: the strip is the page
+          // The tab strip is the topmost row, directly under the host's own
+          // title bar. Always visible, even with one page: it is the page
           // switcher, the drag surface and the place the new-tab button lives.
           h(
             'div',
@@ -3245,9 +3108,54 @@
               icon('plus', 14),
             ),
           ),
+          // One toolbar row: history buttons, the URL box, then the page
+          // controls. The URL box took the title's place, so an address bar no
+          // longer costs a second row under the tabs.
           h(
             'div',
-            { key: 'addr', className: 'dvb-addr' + (activeIsBlank ? ' dvb-addr-blank' : ''), 'data-blank': String(activeIsBlank) },
+            { key: 'bar', className: 'dvb-bar' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dvb-btn',
+                title: t('action.back'),
+                'aria-label': t('action.back'),
+                disabled: !state.running || Boolean(busy) || locked,
+                onClick: function () {
+                  void run('back', '/nav', { action: 'back' });
+                },
+              },
+              icon('back', 16),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dvb-btn',
+                title: t('action.forward'),
+                'aria-label': t('action.forward'),
+                disabled: !state.running || Boolean(busy) || locked,
+                onClick: function () {
+                  void run('forward', '/nav', { action: 'forward' });
+                },
+              },
+              icon('forward', 16),
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'dvb-btn',
+                title: t('action.reload'),
+                'aria-label': t('action.reload'),
+                disabled: !state.running || Boolean(busy) || locked,
+                onClick: function () {
+                  void run('reload', '/nav', { action: 'reload' });
+                },
+              },
+              icon('reload', 16),
+            ),
             h(
               'div',
               { key: 'addr-box', className: 'dvb-addr-box' },
@@ -3342,19 +3250,50 @@
                     )
                   : null,
             ),
-            activeIsBlank
-              ? null
-              : h(
-                  'button',
-                  {
-                    key: 'open',
-                    type: 'button',
-                    className: 'dvb-btn',
-                    disabled: Boolean(busy) || locked || draft.trim() === '',
-                    onClick: openOrStart,
-                  },
-                  t('action.open'),
-                ),
+            busy ? h('span', { key: 'busy', className: 'dvb-status' }, t('busy')) : null,
+            h(
+              'div',
+              { key: 'tools', className: 'dvb-tools' },
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dvb-btn',
+                  title: t('tab.new'),
+                  'aria-label': t('tab.new'),
+                  disabled: !state.running || Boolean(busy) || locked,
+                  onClick: openNewPage,
+                },
+                icon('plus', 16),
+              ),
+              state.running
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dvb-btn',
+                      title: t('action.stop'),
+                      'aria-label': t('action.stop'),
+                      disabled: Boolean(busy) || locked,
+                      onClick: function () {
+                        void run('stop', '/stop', {});
+                      },
+                    },
+                    icon('stop', 16),
+                  )
+                : h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dvb-btn',
+                      'data-variant': 'primary',
+                      disabled: Boolean(busy) || locked,
+                      onClick: openOrStart,
+                    },
+                    icon('play', 14),
+                    t('action.start'),
+                  ),
+            ),
           ),
           error ? h('div', { key: 'error', className: 'dvb-error' }, error) : null,
           !reachable ? h('div', { key: 'offline', className: 'dvb-error' }, t('error.offline')) : null,
@@ -3587,43 +3526,13 @@
                 h('span', { className: 'dvb-log-title' }, t('console.title')),
                 h(
                   'span',
-                  { key: 'log-tabs', className: 'dvb-log-tabs' },
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dvb-log-tab' + (logTab === 'console' ? ' dvb-log-tab-on' : ''),
-                      'data-active': String(logTab === 'console'),
-                      onClick: function () {
-                        setLogTab('console');
-                      },
-                    },
-                    t('console.title'),
-                  ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'dvb-log-tab' + (logTab === 'ops' ? ' dvb-log-tab-on' : ''),
-                      'data-active': String(logTab === 'ops'),
-                      onClick: function () {
-                        setLogTab('ops');
-                      },
-                    },
-                    t('ops.title'),
-                  ),
-                ),
-                h(
-                  'span',
                   { className: 'dvb-log-count' },
-                  (logTab === 'ops' ? actions.length : consoleEntries.length) > 0
-                    ? String(logTab === 'ops' ? actions.length : consoleEntries.length) + ' ' + t('console.count')
-                    : '',
+                  consoleEntries.length > 0 ? String(consoleEntries.length) + ' ' + t('console.count') : '',
                 ),
                 h('span', { className: 'dvb-spacer' }),
                 reachable ? null : h('span', { className: 'dvb-status' }, t('state.offline')),
               ),
-              logTab === 'console' && consoleEntries.length > 0
+              consoleEntries.length > 0
                 ? h(
                     'button',
                     {
@@ -3644,38 +3553,9 @@
               ? h(
                   'div',
                   { className: 'dvb-log-body', ref: logBodyRef },
-                  logTab === 'ops'
-                    ? actions.length === 0
-                      ? h('div', { className: 'dvb-log-empty' }, t('ops.empty'))
-                      : actions.map(function (action) {
-                          return h(
-                            'button',
-                            {
-                              key: action.seq,
-                              type: 'button',
-                              className: 'dvb-op-row',
-                              'data-ok': String(action.ok !== false),
-                              disabled: locked || action.page === '',
-                              title: action.page === '' ? t('ops.noTarget') : '',
-                              onClick: function () {
-                                if (action.page === '' || locked) return;
-                                void run('select-page', '/page', { action: 'select', id: action.page });
-                              },
-                            },
-                            h('span', { className: 'dvb-op-time' }, clock(action.ts)),
-                            h('span', { className: 'dvb-op-kind' }, kindLabel(action.kind)),
-                            h('span', { className: 'dvb-op-target' }, action.target),
-                            h(
-                              'span',
-                              { className: 'dvb-op-detail' },
-                              action.detail,
-                              action.page !== '' ? ' · ' + action.page : '',
-                            ),
-                          );
-                        })
-                    : consoleEntries.length === 0
-                      ? h('div', { className: 'dvb-log-empty' }, t('console.empty'))
-                      : consoleEntries.map(function (entry) {
+                  consoleEntries.length === 0
+                    ? h('div', { className: 'dvb-log-empty' }, t('console.empty'))
+                    : consoleEntries.map(function (entry) {
                           return h(
                             'div',
                             {
@@ -3690,9 +3570,7 @@
                           );
                         }),
                   h('div', { key: 'console-fill', style: { flex: '1 1 auto', minHeight: '2px' } }),
-                  logTab === 'ops'
-                    ? null
-                    : h(
+                  h(
                     'div',
                     { key: 'console-input', className: 'dvb-console-input-row' },
                     h('span', { className: 'dvb-console-prompt', 'aria-hidden': 'true' }, '>'),
