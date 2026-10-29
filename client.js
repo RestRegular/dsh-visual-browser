@@ -70,6 +70,9 @@
       'connecting': '正在连接画面…',
       'console.title': '页面 Console',
       'console.empty': '页面还没有输出。在下面输入脚本按 Enter 运行，网页自身的 console 输出也会实时显示在这里。',
+      'ops.title': '操作记录',
+      'ops.empty': '还没有操作记录。每次用工具操作浏览器都会出现在这里，点击可跳到对应的标签页。',
+      'ops.noTarget': '这条记录没有对应的标签页',
       'console.resize': '上下拖动调整控制台高度，双击复位',
       'console.collapse': '折叠控制台',
       'console.expand': '展开控制台',
@@ -159,6 +162,9 @@
       'connecting': 'Connecting the picture…',
       'console.title': 'Page Console',
       'console.empty': 'No page output yet. Run a script below with Enter; the page’s own console output shows up here live.',
+      'ops.title': 'Operations',
+      'ops.empty': 'No operations yet. Each time a tool drives the browser it appears here; click one to jump to its tab.',
+      'ops.noTarget': 'This record has no tab to jump to',
       'console.resize': 'Drag up or down to resize the console; double-click to reset',
       'console.collapse': 'Collapse the console',
       'console.expand': 'Expand the console',
@@ -257,6 +263,14 @@
     '.dvb-input{flex:1 1 auto;min-width:0;height:28px;padding:0 9px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}',
     '.dvb-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
     '.dvb-input:focus{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-1px}',
+    // ---- address box + browsing history dropdown ------------------------
+    '.dvb-addr-box{position:relative;flex:1 1 auto;min-width:0;display:flex;align-items:center}',
+    '.dvb-addr-blank .dvb-input{height:34px;font-size:13px}',
+    '.dvb-history{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;max-height:280px;overflow-y:auto;padding:4px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 30px rgba(0,0,0,.28)}',
+    '.dvb-history-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;font:inherit}',
+    '.dvb-history-item:hover,.dvb-history-item-on{background:var(--dsw-alias-interactive-bg-hover)}',
+    '.dvb-history-title{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}',
+    '.dvb-history-url{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--dsw-alias-label-tertiary)}',
     // ---- stage ----------------------------------------------------------
     '.dvb-stage{position:relative;--dvb-scale:1;flex:1 1 auto;min-height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);border-bottom:1px solid var(--dsw-alias-border-l1);outline:none}',
     '.dvb-stage[data-focus="true"]{background:var(--dsw-alias-interactive-bg-hover)}',
@@ -325,6 +339,19 @@
     '.dvb-console-row[data-level="result"] .dvb-console-text{color:var(--dsw-alias-state-business-primary,var(--dsw-alias-brand-primary))}',
     '.dvb-console-row[data-level="warn"] .dvb-console-text,.dvb-console-row[data-level="warn"] .dvb-console-level{color:var(--dsw-alias-state-warning-primary,var(--dsw-alias-label-primary))}',
     '.dvb-console-row[data-level="error"] .dvb-console-text{color:var(--dsw-alias-state-error-primary)}',
+    // ---- operations list (click-through to its tab) ----------------------
+    '.dvb-log-tabs{display:inline-flex;align-items:center;gap:2px;margin-left:2px}',
+    '.dvb-log-tab{padding:2px 8px;border:0;border-radius:999px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:11px;line-height:1.6;cursor:pointer}',
+    '.dvb-log-tab:hover{color:var(--dsw-alias-label-primary)}',
+    '.dvb-log-tab-on{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));color:var(--dsw-alias-label-primary)}',
+    '.dvb-op-row{display:grid;grid-template-columns:52px 86px minmax(0,1fr);align-items:start;gap:6px;width:100%;padding:4px 6px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-secondary);font:11.5px/1.5 system-ui;text-align:left;cursor:pointer;min-width:0}',
+    '.dvb-op-row:hover{background:var(--dsw-alias-interactive-bg-hover)}',
+    '.dvb-op-row:disabled{opacity:.55;cursor:default}',
+    '.dvb-op-row[data-ok="false"] .dvb-op-kind{color:var(--dsw-alias-state-error-primary)}',
+    '.dvb-op-time{font-variant-numeric:tabular-nums;color:var(--dsw-alias-label-tertiary);font-size:10.5px;line-height:1.65;white-space:nowrap}',
+    '.dvb-op-kind{font-weight:600;color:var(--dsw-alias-label-secondary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.dvb-op-target{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--dsw-alias-label-primary)}',
+    '.dvb-op-detail{grid-column:1 / -1;color:var(--dsw-alias-label-tertiary);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
     '.dvb-console-row[data-level="error"] .dvb-console-level{color:var(--dsw-alias-state-error-primary);border-color:color-mix(in srgb,var(--dsw-alias-state-error-primary) 45%,transparent)}',
     '.dvb-console-input-row{position:sticky;bottom:0;z-index:2;display:flex;align-items:center;gap:6px;margin:2px -6px 0;padding:6px 8px;border-top:1px solid var(--dsw-alias-border-l3);background:var(--dsw-alias-bg-base)}',
     '.dvb-console-prompt{flex:none;color:var(--dsw-alias-label-tertiary);font:600 12px/1 ui-monospace,SFMono-Regular,Consolas,monospace}',
@@ -1104,6 +1131,7 @@
         var [draft, setDraft] = useState('');
         var [dirty, setDirty] = useState(false);
         var [logOpen, setLogOpen] = useState(readStoredLogOpen);
+        var [logTab, setLogTab] = useState('console');
         var [logHeight, setLogHeight] = useState(readStoredLogHeight);
         var [resizing, setResizing] = useState(false);
         var [consoleDraft, setConsoleDraft] = useState('');
@@ -1124,6 +1152,10 @@
         var [tabDrag, setTabDrag] = useState(null);
         var [tabOrder, setTabOrder] = useState(null);
         var [toast, setToast] = useState('');
+        // URL-bar browsing history dropdown (shows while the input is focused).
+        var [historyOpen, setHistoryOpen] = useState(false);
+        var [historyIndex, setHistoryIndex] = useState(-1);
+        var historyListRef = useRef(null);
 
         var rootRef = useRef(null);
         var logRef = useRef(null);
@@ -2210,6 +2242,31 @@
           setDirty(false);
         };
 
+        var toDraftEnd = function () {
+          window.setTimeout(function () {
+            var input = addrRef.current;
+            if (!input) return;
+            input.focus();
+            try {
+              var len = input.value.length;
+              input.setSelectionRange(len, len);
+            } catch {
+              /* older engines ignore it */
+            }
+          }, 0);
+        };
+
+        // Highlight the history entry that currently matches the draft (first
+        // match), or none, when opening the dropdown for the first time.
+        var previewIndexFromDraft = function () {
+          if (draft.trim() === '') return -1;
+          var wanted = draft.trim();
+          for (var i = 0; i < historyEntries.length; i++) {
+            if (historyEntries[i].url === wanted || shortUrl(historyEntries[i].url) === shortUrl(wanted)) return i;
+          }
+          return -1;
+        };
+
         var retryStream = function () {
           setRetrying(true);
           setStreamRetry(function (value) {
@@ -2975,6 +3032,14 @@
               : t('state.stopped');
 
         var consoleEntries = Array.isArray(state.console) ? state.console : [];
+        var historyEntries = Array.isArray(state.history) ? state.history : [];
+        var actions = Array.isArray(state.actions) ? state.actions : [];
+        // A "start tab": the active page still sits on about:blank and the
+        // panel switches to the minimal new-tab layout (URL box only).
+        var activeIsBlank =
+          state.running &&
+          (pages.length === 0 ||
+            (pages.length === 1 && (state.url === 'about:blank' || state.url === '')));
         // The local animation lock is authoritative; the host's own flag only
         // matters for operations that outlive their animation (navigation) or
         // when the cue stream is down.
@@ -2995,7 +3060,7 @@
             h(
               'span',
               { className: 'dvb-title', title: state.title || state.url || t('panel.title') },
-              state.title || shortUrl(state.url) || t('panel.title'),
+              activeIsBlank ? t('panel.title') : state.title || shortUrl(state.url) || t('panel.title'),
             ),
             h('span', { className: 'dvb-spacer' }),
             busy ? h('span', { className: 'dvb-status' }, t('busy')) : null,
@@ -3153,7 +3218,7 @@
                     className: 'dvb-tab-close',
                     title: t('tab.close'),
                     'aria-label': t('tab.close'),
-                    disabled: locked || pages.length <= 1,
+                    disabled: locked,
                     onPointerDown: function (event) {
                       event.stopPropagation();
                     },
@@ -3182,36 +3247,114 @@
           ),
           h(
             'div',
-            { key: 'addr', className: 'dvb-addr' },
-            h('input', {
-              ref: addrRef,
-              className: 'dvb-input',
-              type: 'text',
-              spellCheck: false,
-              disabled: locked,
-              placeholder: t('url.placeholder'),
-              value: draft,
-              onChange: function (event) {
-                setDirty(true);
-                setDraft(event.target.value);
-              },
-              onKeyDown: function (event) {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  openOrStart();
-                }
-              },
-            }),
+            { key: 'addr', className: 'dvb-addr' + (activeIsBlank ? ' dvb-addr-blank' : ''), 'data-blank': String(activeIsBlank) },
             h(
-              'button',
-              {
-                type: 'button',
-                className: 'dvb-btn',
-                disabled: Boolean(busy) || locked || draft.trim() === '',
-                onClick: openOrStart,
-              },
-              t('action.open'),
+              'div',
+              { key: 'addr-box', className: 'dvb-addr-box' },
+              h('input', {
+                ref: addrRef,
+                className: 'dvb-input',
+                type: 'text',
+                spellCheck: false,
+                disabled: locked,
+                placeholder: t('url.placeholder'),
+                value: draft,
+                onChange: function (event) {
+                  setDirty(true);
+                  setDraft(event.target.value);
+                },
+                onFocus: function () {
+                  setHistoryOpen(true);
+                  setHistoryIndex(previewIndexFromDraft());
+                },
+                onBlur: function (event) {
+                  var next = event.relatedTarget;
+                  if (next && historyListRef.current && historyListRef.current.contains(next)) return;
+                  setHistoryOpen(false);
+                  setHistoryIndex(-1);
+                },
+                onKeyDown: function (event) {
+                  if (activeIsBlank) {
+                    if (event.key === 'ArrowDown') {
+                      event.preventDefault();
+                      setHistoryOpen(true);
+                      setHistoryIndex(function (value) {
+                        return historyEntries.length === 0 ? -1 : Math.min(historyEntries.length - 1, value + 1);
+                      });
+                      return;
+                    }
+                    if (event.key === 'ArrowUp') {
+                      event.preventDefault();
+                      setHistoryIndex(function (value) {
+                        return historyEntries.length === 0 ? -1 : Math.max(0, value === -1 ? historyEntries.length - 1 : value - 1);
+                      });
+                      return;
+                    }
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      if (historyIndex >= 0 && historyIndex < historyEntries.length) {
+                        var picked = historyEntries[historyIndex];
+                        setDirty(false);
+                        setDraft(picked.url);
+                        // Selecting with the keyboard fills the box and keeps it
+                        // focused without navigating: the user may edit it.
+                        toDraftEnd();
+                      } else {
+                        openOrStart();
+                      }
+                      return;
+                    }
+                  }
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    openOrStart();
+                  }
+                },
+              }),
+              historyOpen && !activeIsBlank
+                ? null
+                : historyOpen && historyEntries.length > 0 && activeIsBlank
+                  ? h(
+                      'div',
+                      { key: 'dvb-history', className: 'dvb-history', ref: historyListRef, role: 'listbox' },
+                      historyEntries.map(function (entry, index) {
+                        return h(
+                          'button',
+                          {
+                            key: entry.url,
+                            type: 'button',
+                            role: 'option',
+                            'aria-selected': String(index === historyIndex),
+                            className: 'dvb-history-item' + (index === historyIndex ? ' dvb-history-item-on' : ''),
+                            onMouseDown: function (event) {
+                              event.preventDefault();
+                              setDirty(false);
+                              setDraft(entry.url);
+                              void run('open', '/start', { url: entry.url });
+                              setHistoryOpen(false);
+                              setHistoryIndex(-1);
+                            },
+                          },
+                          h('span', { className: 'dvb-history-title' }, entry.title || shortUrl(entry.url) || entry.url),
+                          h('span', { className: 'dvb-history-url' }, shortUrl(entry.url) || entry.url),
+                        );
+                      }),
+                    )
+                  : null,
             ),
+            activeIsBlank
+              ? null
+              : h(
+                  'button',
+                  {
+                    key: 'open',
+                    type: 'button',
+                    className: 'dvb-btn',
+                    disabled: Boolean(busy) || locked || draft.trim() === '',
+                    onClick: openOrStart,
+                  },
+                  t('action.open'),
+                ),
           ),
           error ? h('div', { key: 'error', className: 'dvb-error' }, error) : null,
           !reachable ? h('div', { key: 'offline', className: 'dvb-error' }, t('error.offline')) : null,
@@ -3444,13 +3587,43 @@
                 h('span', { className: 'dvb-log-title' }, t('console.title')),
                 h(
                   'span',
+                  { key: 'log-tabs', className: 'dvb-log-tabs' },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dvb-log-tab' + (logTab === 'console' ? ' dvb-log-tab-on' : ''),
+                      'data-active': String(logTab === 'console'),
+                      onClick: function () {
+                        setLogTab('console');
+                      },
+                    },
+                    t('console.title'),
+                  ),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'dvb-log-tab' + (logTab === 'ops' ? ' dvb-log-tab-on' : ''),
+                      'data-active': String(logTab === 'ops'),
+                      onClick: function () {
+                        setLogTab('ops');
+                      },
+                    },
+                    t('ops.title'),
+                  ),
+                ),
+                h(
+                  'span',
                   { className: 'dvb-log-count' },
-                  consoleEntries.length > 0 ? String(consoleEntries.length) + ' ' + t('console.count') : '',
+                  (logTab === 'ops' ? actions.length : consoleEntries.length) > 0
+                    ? String(logTab === 'ops' ? actions.length : consoleEntries.length) + ' ' + t('console.count')
+                    : '',
                 ),
                 h('span', { className: 'dvb-spacer' }),
                 reachable ? null : h('span', { className: 'dvb-status' }, t('state.offline')),
               ),
-              consoleEntries.length > 0
+              logTab === 'console' && consoleEntries.length > 0
                 ? h(
                     'button',
                     {
@@ -3471,26 +3644,55 @@
               ? h(
                   'div',
                   { className: 'dvb-log-body', ref: logBodyRef },
-                  consoleEntries.length === 0
-                    ? h('div', { className: 'dvb-log-empty' }, t('console.empty'))
-                    : consoleEntries.map(function (entry) {
-                        return h(
-                          'div',
-                          {
-                            key: entry.id,
-                            className: 'dvb-console-row',
-                            'data-level': entry.level,
-                            title: entry.url || '',
-                          },
-                          h('span', { className: 'dvb-console-time' }, clock(entry.ts)),
-                          h('span', { className: 'dvb-console-level' }, consoleLevelLabel(entry.level)),
-                          h('span', { className: 'dvb-console-text' }, entry.text),
-                        );
-                      }),
-                  // Pushes the input to the bottom while the list is short;
-                  // sticky positioning keeps it there once the list scrolls.
+                  logTab === 'ops'
+                    ? actions.length === 0
+                      ? h('div', { className: 'dvb-log-empty' }, t('ops.empty'))
+                      : actions.map(function (action) {
+                          return h(
+                            'button',
+                            {
+                              key: action.seq,
+                              type: 'button',
+                              className: 'dvb-op-row',
+                              'data-ok': String(action.ok !== false),
+                              disabled: locked || action.page === '',
+                              title: action.page === '' ? t('ops.noTarget') : '',
+                              onClick: function () {
+                                if (action.page === '' || locked) return;
+                                void run('select-page', '/page', { action: 'select', id: action.page });
+                              },
+                            },
+                            h('span', { className: 'dvb-op-time' }, clock(action.ts)),
+                            h('span', { className: 'dvb-op-kind' }, kindLabel(action.kind)),
+                            h('span', { className: 'dvb-op-target' }, action.target),
+                            h(
+                              'span',
+                              { className: 'dvb-op-detail' },
+                              action.detail,
+                              action.page !== '' ? ' · ' + action.page : '',
+                            ),
+                          );
+                        })
+                    : consoleEntries.length === 0
+                      ? h('div', { className: 'dvb-log-empty' }, t('console.empty'))
+                      : consoleEntries.map(function (entry) {
+                          return h(
+                            'div',
+                            {
+                              key: entry.id,
+                              className: 'dvb-console-row',
+                              'data-level': entry.level,
+                              title: entry.url || '',
+                            },
+                            h('span', { className: 'dvb-console-time' }, clock(entry.ts)),
+                            h('span', { className: 'dvb-console-level' }, consoleLevelLabel(entry.level)),
+                            h('span', { className: 'dvb-console-text' }, entry.text),
+                          );
+                        }),
                   h('div', { key: 'console-fill', style: { flex: '1 1 auto', minHeight: '2px' } }),
-                  h(
+                  logTab === 'ops'
+                    ? null
+                    : h(
                     'div',
                     { key: 'console-input', className: 'dvb-console-input-row' },
                     h('span', { className: 'dvb-console-prompt', 'aria-hidden': 'true' }, '>'),
