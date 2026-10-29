@@ -1244,6 +1244,13 @@
         var [historyIndex, setHistoryIndex] = useState(-1);
         var [historyQuery, setHistoryQuery] = useState('');
         var historyListRef = useRef(null);
+        // One press acts once: the row's own pointerdown and the geometric
+        // fallback below both see it, and only the first one may pick.
+        var historyPickedRef = useRef(false);
+        var historyBlurTimerRef = useRef(0);
+        // Latest handlers, so the document-level press listener never picks
+        // through a stale closure.
+        var historyHandlersRef = useRef({ pick: null, forget: null });
 
         var rootRef = useRef(null);
         var logRef = useRef(null);
@@ -2435,6 +2442,12 @@
         // Open the history dropdown for the text currently in the box: an empty
         // box lists everything, a filled one is filtered by prefix.
         var openHistory = function (query) {
+          historyPickedRef.current = false;
+          // Focus came back before the blur-close fired: keep the list.
+          if (historyBlurTimerRef.current !== 0) {
+            window.clearTimeout(historyBlurTimerRef.current);
+            historyBlurTimerRef.current = 0;
+          }
           setHistoryQuery(query);
           setHistoryOpen(true);
           setHistoryIndex(-1);
@@ -2472,30 +2485,73 @@
           toDraftEnd();
         };
 
+        // A pending blur-close is cancelled whenever the press lands on the
+        // list: losing focus to the press itself must not eat the pick.
+        var keepHistoryOpen = function () {
+          if (historyBlurTimerRef.current === 0) return;
+          window.clearTimeout(historyBlurTimerRef.current);
+          historyBlurTimerRef.current = 0;
+        };
+
         // Open the picked row: the url fills the box immediately and is submitted
         // right away, the way pressing Enter on it would. `dirty` stays on until
         // the host answers, so a slow (or failed) navigation cannot snap the box
         // back to the old page before the user sees what was picked.
         var pickHistory = function (entry) {
+          if (historyPickedRef.current) return;
+          historyPickedRef.current = true;
+          keepHistoryOpen();
+          // Where the page was before the pick, so a navigation that the host
+          // never actually performed cannot pass for one that did.
+          var was = state.url;
           setHistoryOpen(false);
           setHistoryIndex(-1);
           setDirty(true);
           setDraft(entry.url);
           toDraftEnd();
           void run('open', '/start', { url: entry.url }).then(function (data) {
-            // Landing on the page lets the box follow it again; a failure keeps
-            // the picked url in place so it can be fixed and resubmitted.
-            if (data) setDirty(false);
+            // The box follows the page again once the page really moved, or when
+            // it already sits on the picked url. Anything else (a failure, or a
+            // start that went nowhere) keeps the picked url visible so it can be
+            // fixed and submitted, instead of silently snapping back.
+            var landed = data && data.state ? String(data.state.url || '') : '';
+            if (data && (landed === '' || landed !== was || historyKey(landed) === historyKey(entry.url))) {
+              setDirty(false);
+            }
           });
         };
 
         // Forget one row (its × button, or Delete on the highlighted row). The
         // page itself is untouched; the box goes back to what was being typed.
         var forgetHistory = function (entry) {
+          keepHistoryOpen();
           setHistoryIndex(-1);
           setDirty(historyQuery !== '');
           setDraft(historyQuery);
           void run('history-remove', '/history', { action: 'remove', url: entry.url });
+        };
+        historyHandlersRef.current = { pick: pickHistory, forget: forgetHistory };
+
+        // Which row sits under these viewport coordinates, and whether the × of
+        // that row is under them. Pure geometry: it answers even when the press
+        // lands on something else that happens to be above the list.
+        var historyRowAtPoint = function (x, y) {
+          var list = historyListRef.current;
+          if (!list) return null;
+          var box = list.getBoundingClientRect();
+          if (x < box.left || x > box.right || y < box.top || y > box.bottom) return null;
+          // Its own scrollbar stays a scrollbar: a press there drags the list.
+          var bar = list.offsetWidth - list.clientWidth;
+          if (bar > 0 && list.scrollHeight > list.clientHeight && x >= box.right - bar - 1) return null;
+          var rows = list.children;
+          for (var index = 0; index < rows.length; index += 1) {
+            var row = rows[index].getBoundingClientRect();
+            if (y < row.top || y > row.bottom) continue;
+            var remove = rows[index].querySelector('.dvb-history-del');
+            var target = remove ? remove.getBoundingClientRect() : null;
+            return { index: index, remove: target !== null && x >= target.left && x <= target.right };
+          }
+          return null;
         };
 
         var retryStream = function () {
@@ -3347,6 +3403,58 @@
           },
           [historyEntries, historyQuery],
         );
+        // Picking a row must not depend on which element the browser decides the
+        // press belongs to. A press that geometrically falls on the list picks
+        // that row even when it is reported against something else — an overlay
+        // of the host's, a transparent layer, a row re-created mid-press — and
+        // this capture-phase listener sees it before any of them can act on it.
+        useEffect(
+          function () {
+            if (!historyOpen) return undefined;
+            var onPress = function (event) {
+              historyPickedRef.current = false;
+              var list = historyListRef.current;
+              if (!list) return;
+              var hit = historyRowAtPoint(event.clientX, event.clientY);
+              if (hit === null) return;
+              // The list owns this press, so the pending blur-close is off.
+              keepHistoryOpen();
+              var handlers = historyHandlersRef.current;
+              if (event.target && typeof list.contains === 'function' && list.contains(event.target)) {
+                // The row (or its ×) is the real target: its own handler runs.
+                return;
+              }
+              // Reported against something else: act on the geometry, and keep
+              // the press from reaching the layer that covered the list.
+              event.preventDefault();
+              event.stopPropagation();
+              var entry = historyList[hit.index];
+              if (!entry) return;
+              if (hit.remove) handlers.forget(entry);
+              else handlers.pick(entry);
+            };
+            document.addEventListener('pointerdown', onPress, true);
+            return function () {
+              document.removeEventListener('pointerdown', onPress, true);
+            };
+          },
+          [historyOpen, historyList],
+        );
+
+        // A blur-close waits a tick so a press that lands on a row is not eaten
+        // by the focus leaving the box first, and so the list never flickers
+        // away between the press and its handler.
+        useEffect(
+          function () {
+            return function () {
+              if (historyBlurTimerRef.current === 0) return;
+              window.clearTimeout(historyBlurTimerRef.current);
+              historyBlurTimerRef.current = 0;
+            };
+          },
+          [],
+        );
+
         // Keep the arrow-key selection visible inside the scrolling list.
         useEffect(
           function () {
@@ -3628,8 +3736,14 @@
                 onBlur: function (event) {
                   var next = event.relatedTarget;
                   if (next && historyListRef.current && historyListRef.current.contains(next)) return;
-                  setHistoryOpen(false);
-                  setHistoryIndex(-1);
+                  // Close a beat later: a press on a row would otherwise race the
+                  // focus change and act on a list that is already gone.
+                  if (historyBlurTimerRef.current !== 0) window.clearTimeout(historyBlurTimerRef.current);
+                  historyBlurTimerRef.current = window.setTimeout(function () {
+                    historyBlurTimerRef.current = 0;
+                    setHistoryOpen(false);
+                    setHistoryIndex(-1);
+                  }, 120);
                 },
                 onKeyDown: function (event) {
                   // Arrow keys walk the list in every tab (not just a fresh
