@@ -66,6 +66,11 @@
       'toast.externalFailed': '没能唤起默认浏览器',
       'url.placeholder': '输入网址，例如 example.com',
       'history.remove': '删除这条记录',
+      'follow.label': '跟随',
+      'follow.toggle': '页面跟随：让 Agent 接管整个面板，画面自动切到它正在操作的标签页',
+      'follow.off': '正在跟随 Agent：面板已锁定',
+      'follow.exit': '退出跟随',
+      'follow.exitHint': '退出跟随（Esc）',
       'hint.interactive': '直接用鼠标操作画面；点一下画面后可用键盘输入',
       'hint.headless': '无头浏览器：窗口不可见，画面只在这里',
       'empty.title': '浏览器还没启动',
@@ -156,6 +161,11 @@
       'toast.externalFailed': 'Could not open the default browser',
       'url.placeholder': 'Enter a URL, for example example.com',
       'history.remove': 'Remove this entry',
+      'follow.label': 'Follow',
+      'follow.toggle': 'Follow the Agent: it takes the whole panel, and the picture switches to the page it touches',
+      'follow.off': 'Following the Agent — the panel is locked',
+      'follow.exit': 'Stop following',
+      'follow.exitHint': 'Stop following (Esc)',
       'hint.interactive': 'Click straight into the picture; click once to type with the keyboard',
       'hint.headless': 'Headless browser: no window to watch, the picture here is the browser',
       'empty.title': 'The browser is not running yet',
@@ -253,6 +263,19 @@
     '.dvb-menu-sep{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l3)}',
     '.dvb-toast{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);z-index:70;max-width:calc(100% - 24px);padding:6px 12px;border-radius:999px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-overlay);color:var(--dsw-alias-label-primary);font-size:11.5px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 14px rgba(0,0,0,.18);pointer-events:none;animation:dvb-toast-in .16s ease-out}',
     '@keyframes dvb-toast-in{from{opacity:0;transform:translate(-50%,6px)}to{opacity:1;transform:translate(-50%,0)}}',
+    // ---- takeover (follow the Agent) ------------------------------------
+    // One translucent sheet over the whole panel: clear in the middle, a faint
+    // orange-red vignette towards the edges. It takes every pointer event, so
+    // the panel is read-only while the Agent drives the browser.
+    '.dvb-follow-btn[data-on="true"]{background:color-mix(in srgb,var(--dsw-alias-state-warning-primary,#ff7a45) 16%,transparent);border-color:color-mix(in srgb,var(--dsw-alias-state-warning-primary,#ff7a45) 46%,transparent);color:var(--dsw-alias-state-warning-primary,#ff7a45)}',
+    '.dvb-takeover{position:absolute;inset:0;z-index:2147483100;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:10px 12px 16px;box-sizing:border-box;background:radial-gradient(ellipse 72% 64% at 50% 50%,rgba(255,122,69,0) 44%,rgba(255,128,74,.09) 68%,rgba(255,104,54,.30) 100%);cursor:not-allowed;animation:dvb-takeover-in .18s ease-out}',
+    '@keyframes dvb-takeover-in{from{opacity:0}to{opacity:1}}',
+    '.dvb-takeover-tag{display:inline-flex;align-items:center;gap:7px;max-width:100%;padding:5px 11px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-bg-overlay) 88%,transparent);border:1px solid color-mix(in srgb,var(--dsw-alias-state-warning-primary,#ff7a45) 34%,transparent);color:var(--dsw-alias-label-primary);font-size:11.5px;line-height:1.35;box-shadow:0 4px 16px rgba(255,104,54,.16);pointer-events:none}',
+    '.dvb-takeover-dot{width:7px;height:7px;flex:none;border-radius:50%;background:var(--dsw-alias-state-warning-primary,#ff7a45);animation:dvb-lock-pulse 1.4s ease-in-out infinite}',
+    '.dvb-takeover-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '.dvb-takeover-exit{pointer-events:auto;display:inline-flex;align-items:center;justify-content:center;gap:6px;height:28px;padding:0 13px;border-radius:999px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-warning-primary,#ff7a45) 46%,transparent);background:color-mix(in srgb,var(--dsw-alias-bg-overlay) 90%,transparent);color:var(--dsw-alias-label-primary);font:inherit;font-size:11.5px;cursor:pointer;box-shadow:0 6px 20px rgba(255,104,54,.20)}',
+    '.dvb-takeover-exit:hover{background:var(--dsw-alias-bg-overlay);border-color:var(--dsw-alias-state-warning-primary,#ff7a45)}',
+    '.dvb-takeover-exit:focus-visible{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:2px}',
     '.dvb-input{flex:1 1 auto;min-width:0;height:28px;padding:0 9px;border-radius:7px;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);font:inherit;font-size:12px}',
     '.dvb-input::placeholder{color:var(--dsw-alias-label-tertiary)}',
     '.dvb-input:focus{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-1px}',
@@ -778,6 +801,12 @@
               h('path', { key: 'b', d: 'M19 5l-7.6 7.6' }),
               h('path', { key: 'c', d: 'M18.2 14.2v3.3a1.9 1.9 0 0 1-1.9 1.9H6.7a1.9 1.9 0 0 1-1.9-1.9V7.9A1.9 1.9 0 0 1 6.7 6h3.3' }),
             ]);
+          case 'follow':
+            return svg({ size: size || 15 }, [
+              h('circle', { key: 'a', cx: 12, cy: 12, r: 7.2 }),
+              h('circle', { key: 'b', cx: 12, cy: 12, r: 2.4, fill: 'currentColor', stroke: 'none' }),
+              h('path', { key: 'c', d: 'M12 2.4v3.2M12 18.4v3.2M2.4 12h3.2M18.4 12h3.2' }),
+            ]);
           case 'globe':
             return svg({ size: size || 24, strokeWidth: 1.6 }, [
               h('circle', { key: 'a', cx: 12, cy: 12, r: 8.5 }),
@@ -1207,6 +1236,9 @@
         // Agent-lock bookkeeping: keep the veil up until the last drawn
         // animation (and, for navigation, until the host really finished).
         var lockedRef = useRef(false);
+        // Takeover mode, mirrored for the pointer/keyboard guards: those run in
+        // native listeners that must not wait for a re-render.
+        var followRef = useRef(false);
         var lockUntilRef = useRef(0);
         var lockTimerRef = useRef(0);
         var longCueRef = useRef(false);
@@ -2054,7 +2086,7 @@
         };
 
         var onPointerDown = function (event) {
-          if (!state.running || !state.allowUserControl || lockedRef.current) return;
+          if (!state.running || !state.allowUserControl || userBlocked()) return;
           if (event.button !== 0 && event.button !== 2 && event.button !== 1) return;
           var point = toNormalized(event);
           if (!point) return;
@@ -2102,7 +2134,7 @@
         };
 
         var onPointerMove = function (event) {
-          if (!state.running || !state.allowUserControl || lockedRef.current) return;
+          if (!state.running || !state.allowUserControl || userBlocked()) return;
           placeCursor(event);
           var point = toNormalized(event);
           if (!point) return;
@@ -2190,7 +2222,7 @@
             var canvas = canvasRef.current;
             if (!canvas) return undefined;
             var onWheel = function (event) {
-              if (!state.running || !state.allowUserControl || lockedRef.current) return;
+              if (!state.running || !state.allowUserControl || userBlocked()) return;
               event.preventDefault();
               var rect = frameRect();
               if (!rect) return;
@@ -2215,7 +2247,7 @@
         );
 
         var onKeyDown = function (event) {
-          if (!state.running || !state.allowUserControl || lockedRef.current) return;
+          if (!state.running || !state.allowUserControl || userBlocked()) return;
           var text = typedText(event);
           if (text === '' && (event.ctrlKey || event.metaKey) && event.key === 'v') {
             return; // paste is handled by onPaste with real clipboard text
@@ -2235,7 +2267,7 @@
         };
 
         var onKeyUp = function (event) {
-          if (!state.running || !state.allowUserControl || lockedRef.current) return;
+          if (!state.running || !state.allowUserControl || userBlocked()) return;
           event.preventDefault();
           sender.send({
             t: 'key',
@@ -2249,7 +2281,7 @@
         };
 
         var onPaste = function (event) {
-          if (!state.running || !state.allowUserControl || lockedRef.current) return;
+          if (!state.running || !state.allowUserControl || userBlocked()) return;
           var data = event.clipboardData;
           var text = data ? data.getData('text/plain') : '';
           if (!text) return;
@@ -3123,6 +3155,75 @@
         // matters for operations that outlive their animation (navigation) or
         // when the cue stream is down.
         var locked = agentBusy || (state.agentBusy === true && (longCueRef.current || !eventsLiveRef.current));
+        // Takeover: the host switches the active page under the Agent's feet, so
+        // the panel always shows the tab that is being driven.
+        var followOn = state.follow === true;
+
+        // The pointer and the keyboard belong to the Agent while it acts, and the
+        // whole panel belongs to it in takeover mode.
+        var userBlocked = function () {
+          return lockedRef.current || followRef.current;
+        };
+
+        // Entering takeover drops any focus the user had and closes the panel's
+        // own popovers: the mask is the only thing left to use.
+        useEffect(
+          function () {
+            followRef.current = followOn;
+            if (!followOn) return;
+            setTabMenu(null);
+            setHistoryOpen(false);
+            setHistoryIndex(-1);
+            var stage = stageRef.current;
+            if (stage && typeof stage.blur === 'function') {
+              try {
+                stage.blur();
+              } catch {
+                /* already blurred */
+              }
+            }
+            var active = document.activeElement;
+            var root = rootRef.current;
+            if (active && root && root.contains(active) && typeof active.blur === 'function') active.blur();
+          },
+          [followOn],
+        );
+
+        // Esc hands the panel back even though the mask swallows every click.
+        useEffect(
+          function () {
+            if (!followOn) return undefined;
+            var onKey = function (event) {
+              if (event.key !== 'Escape') return;
+              event.preventDefault();
+              event.stopPropagation();
+              void run('follow', '/follow', { on: false });
+            };
+            window.addEventListener('keydown', onKey, true);
+            return function () {
+              window.removeEventListener('keydown', onKey, true);
+            };
+          },
+          [followOn, run],
+        );
+
+        // A panel that goes away must not leave the browser in takeover mode.
+        useEffect(
+          function () {
+            return function () {
+              if (!followRef.current) return;
+              followRef.current = false;
+              void requestJson('/follow', { method: 'POST', body: { on: false } }).catch(function () {
+                /* the host drops the mode with the next panel anyway */
+              });
+            };
+          },
+          [],
+        );
+
+        var toggleFollow = function () {
+          void run('follow', '/follow', { on: !followOn });
+        };
 
         return h(
           'div',
@@ -3395,6 +3496,23 @@
             h(
               'div',
               { key: 'tools', className: 'dvb-tools' },
+              // Takeover: hand the panel to the Agent, which then switches the
+              // picture to whichever tab it touches.
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'dvb-btn dvb-follow-btn',
+                  'data-on': String(followOn),
+                  'aria-pressed': String(followOn),
+                  title: followOn ? t('follow.off') : t('follow.toggle'),
+                  'aria-label': t('follow.toggle'),
+                  disabled: Boolean(busy) || locked,
+                  onClick: toggleFollow,
+                },
+                icon('follow', 15),
+                t('follow.label'),
+              ),
               h(
                 'button',
                 {
@@ -3807,6 +3925,34 @@
             : null,
           toast !== ''
             ? h('div', { key: 'toast', className: 'dvb-toast', role: 'status', 'aria-live': 'polite' }, toast)
+            : null,
+          // Takeover mask: the panel is the Agent's while follow mode is on. A
+          // clear middle, a pale orange-red vignette at the edges, and one way
+          // out (Esc does the same).
+          followOn
+            ? h(
+                'div',
+                { key: 'takeover', className: 'dvb-takeover', role: 'presentation' },
+                h(
+                  'div',
+                  { className: 'dvb-takeover-tag', role: 'status', 'aria-live': 'polite' },
+                  h('span', { className: 'dvb-takeover-dot' }),
+                  h('span', { className: 'dvb-takeover-text' }, t('follow.off')),
+                ),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'dvb-takeover-exit',
+                    title: t('follow.exitHint'),
+                    onClick: function () {
+                      void run('follow', '/follow', { on: false });
+                    },
+                  },
+                  icon('close', 12),
+                  t('follow.exit'),
+                ),
+              )
             : null,
         );
       }

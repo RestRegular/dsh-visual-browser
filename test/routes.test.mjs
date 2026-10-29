@@ -64,7 +64,7 @@ function makeManager({ running = true } = {}) {
     calls: {},
     running,
     state() {
-      return { running, url: 'https://demo.test/', startedAt: 12, actionSeq: 3, actions: [] };
+      return { running, url: 'https://demo.test/', startedAt: 12, actionSeq: 3, follow: this.follow === true, actions: [] };
     },
     framesListener: null,
     subscribeFrames(listener) {
@@ -137,6 +137,12 @@ function makeManager({ running = true } = {}) {
     },
     removeHistory(url) {
       this.calls.historyRemoved = url;
+    },
+    follow: false,
+    setFollow(on) {
+      this.calls.follow = on;
+      this.follow = on === true;
+      return this.follow;
     },
     noteError(error) {
       this.calls.error = error;
@@ -316,6 +322,23 @@ async function request(manager, method, path, body, options) {
   assert.equal(missing.json.error.code, 'BAD_ACTION');
 
   const rejected = await request(manager, 'POST', '/console', { action: 'teleport' });
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(rejected.json.error.code, 'BAD_ACTION');
+}
+
+// takeover mode: the panel hands the browser over to the Agent
+{
+  const manager = makeManager();
+  const on = await request(manager, 'POST', '/follow', { on: true });
+  assert.equal(on.statusCode, 200);
+  assert.equal(manager.calls.follow, true);
+  assert.equal(on.json.state.follow, true, 'the fresh state carries the mode');
+
+  const off = await request(manager, 'POST', '/follow', { on: false });
+  assert.equal(off.statusCode, 200);
+  assert.equal(off.json.state.follow, false);
+
+  const rejected = await request(manager, 'POST', '/follow', { on: 'yes' });
   assert.equal(rejected.statusCode, 400);
   assert.equal(rejected.json.error.code, 'BAD_ACTION');
 }

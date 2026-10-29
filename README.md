@@ -49,7 +49,8 @@ dependencies; it talks CDP over the built-in WebSocket).
    *"打开 example.com 看看首页写了什么"*. The Agent calls `browser_open`.
 3. Watch the picture. Click, drag, wheel and type straight into it. The tab strip
    sits above the toolbar; the toolbar below it carries the address box (type a
-   URL and press Enter) plus back / forward / reload / **new page** / stop. A
+   URL and press Enter) plus back / forward / reload / **new page** / stop / and
+   **跟随 / Follow** — the takeover switch described below. A
    tab strip always shows (even with one page): ＋ adds a page, a chip switches
    to it, its × closes it (the last page stays).
    The whole rounded chip is the hit area — a click anywhere on it (padding,
@@ -148,9 +149,22 @@ only literal colour in the bundle is the `#fff` fallback after
 | --- | --- |
 | `browser_open` | Open a URL (launches Chrome on first use) and return the numbered view. |
 | `browser_see` | Fresh numbered view of the current page. |
-| `browser_act` | `click` / `upload` / `drag` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view. |
+| `browser_act` | `click` / `upload` / `drag` / `type` / `key` / `hover` / `scroll` / `select` / `back` / `forward` / `reload` / `wait` / `close`, then return the new view **and, by default, a picture of the result in the same answer** — the old “click, screenshot, read_image” is one call. `screenshot: false` skips the picture, `read: false` only saves it, `delay_ms` waits before the shot. |
 | `browser_text` | Read text of the page or of one element (a link also returns its `href`). |
-| `browser_screenshot` | Save a PNG/JPEG to disk and return the path (feed it to `read_image`). |
+| `browser_screenshot` | Capture a picture and hand it to the model in the same answer (`read: false` returns only the saved path). |
+| `browser_cdp` | One raw CDP command (`method`, `params`, optional `page`) for what the numbered view cannot express — `Runtime.evaluate`, `Network.*`, `Emulation.*`. Routing it through the manager keeps the panel, the action log and the takeover mode on the same page. |
+
+### Takeover: the Agent gets the panel
+
+The **跟随 / Follow** button in the toolbar hands the whole panel to the Agent.
+While it is on, a translucent sheet covers the panel — clear in the middle, a
+pale orange-red vignette towards the edges — and takes every pointer event, so
+nothing in the panel can be clicked, typed into or dragged. The Agent's own
+operations then decide what you see: whichever tab it reads or acts on becomes
+the active page, so the live picture switches to it by itself (this also holds
+for `browser_cdp`, as long as the command names its `page`). Leave with **Esc**
+or the **退出跟随 / Stop following** button on the sheet; closing the panel
+leaves the mode too.
 
 ### Native controls: the parts that are not page content
 
@@ -279,7 +293,9 @@ Chrome is killed with its process tree when the plugin unloads.
   parsing differs between browser builds, so the panel parses frames itself.
 - The model-facing tools act on the **active page**: `browser_open` navigates it
   and every read/act applies to it, so "the current page" stays unambiguous while
-  you keep other pages open in the tab strip.
+  you keep other pages open in the tab strip. In takeover mode the tools'
+  `page` argument also moves the active page, which is how the panel follows the
+  Agent.
 - Requests time out and the panel always retries, so a connection that a sleep
   or a host restart black-holed recovers on its own instead of needing a page
   refresh.

@@ -23,7 +23,7 @@ export function apply(ctx, config = {}) {
     'dsh-visual-browser: browser lifecycle',
   );
 
-  const tools = browserTools(manager);
+  const tools = browserTools(manager, ctx);
   try {
     ctx.inject(['tools'], (scoped) => {
       for (const definition of tools) {
