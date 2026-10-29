@@ -135,6 +135,9 @@ function makeManager({ running = true } = {}) {
     clearConsole() {
       this.calls.consoleCleared = true;
     },
+    removeHistory(url) {
+      this.calls.historyRemoved = url;
+    },
     noteError(error) {
       this.calls.error = error;
     },
@@ -313,6 +316,19 @@ async function request(manager, method, path, body, options) {
   assert.equal(missing.json.error.code, 'BAD_ACTION');
 
   const rejected = await request(manager, 'POST', '/console', { action: 'teleport' });
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(rejected.json.error.code, 'BAD_ACTION');
+}
+
+// browsing history: one entry can be forgotten from the URL box
+{
+  const manager = makeManager();
+  const removed = await request(manager, 'POST', '/history', { action: 'remove', url: 'https://demo.test/a' });
+  assert.equal(removed.statusCode, 200);
+  assert.equal(manager.calls.historyRemoved, 'https://demo.test/a');
+  assert.ok(removed.json.state, 'the fresh state comes back with the answer');
+
+  const rejected = await request(manager, 'POST', '/history', { action: 'clear' });
   assert.equal(rejected.statusCode, 400);
   assert.equal(rejected.json.error.code, 'BAD_ACTION');
 }

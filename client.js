@@ -24,6 +24,8 @@
   var CHIP_SOURCE = 'browser-page';
   var BROWSER_TYPE_ID = '@deepseek-ai/dsh-client-ui-sidebar-browser';
   var BROWSER_KIND = 'browser';
+  // Upper bound on the rows the URL box's history dropdown renders at once.
+  var HISTORY_ROWS = 60;
 
   // Chromium refuses `keepalive` on a non-http(s) scheme: inside Electron the
   // panel runs on dsh-app://, where such a request fails before it reaches the
@@ -63,6 +65,7 @@
       'toast.externalOpened': '已在默认浏览器中打开',
       'toast.externalFailed': '没能唤起默认浏览器',
       'url.placeholder': '输入网址，例如 example.com',
+      'history.remove': '删除这条记录',
       'hint.interactive': '直接用鼠标操作画面；点一下画面后可用键盘输入',
       'hint.headless': '无头浏览器：窗口不可见，画面只在这里',
       'empty.title': '浏览器还没启动',
@@ -152,6 +155,7 @@
       'toast.externalOpened': 'Opened in the default browser',
       'toast.externalFailed': 'Could not open the default browser',
       'url.placeholder': 'Enter a URL, for example example.com',
+      'history.remove': 'Remove this entry',
       'hint.interactive': 'Click straight into the picture; click once to type with the keyboard',
       'hint.headless': 'Headless browser: no window to watch, the picture here is the browser',
       'empty.title': 'The browser is not running yet',
@@ -254,11 +258,16 @@
     '.dvb-input:focus{outline:2px solid var(--dsw-focus-ring-color,var(--dsw-alias-brand-primary));outline-offset:-1px}',
     // ---- address box + browsing history dropdown ------------------------
     '.dvb-addr-box{position:relative;flex:1 1 auto;min-width:0;display:flex;align-items:center}',
-    '.dvb-history{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;max-height:280px;overflow-y:auto;padding:4px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 30px rgba(0,0,0,.28)}',
-    '.dvb-history-item{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;padding:6px 8px;border:0;border-radius:6px;background:transparent;color:var(--dsw-alias-label-primary);text-align:left;cursor:pointer;font:inherit}',
+    '.dvb-history{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:30;max-height:280px;overflow-y:auto;overscroll-behavior:contain;padding:4px;border-radius:9px;border:1px solid var(--dsw-alias-border-l2);background:var(--dsw-alias-bg-layer-1);box-shadow:0 10px 30px rgba(0,0,0,.28)}',
+    // One line per entry, "title - example.com", cut with an ellipsis. The row
+    // is the click target; its trailing × appears on hover and forgets the
+    // entry instead of opening it.
+    '.dvb-history-item{position:relative;display:flex;align-items:center;gap:2px;box-sizing:border-box;width:100%;height:26px;padding:0 2px 0 8px;border-radius:6px;cursor:pointer}',
     '.dvb-history-item:hover,.dvb-history-item-on{background:var(--dsw-alias-interactive-bg-hover)}',
-    '.dvb-history-title{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}',
-    '.dvb-history-url{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--dsw-alias-label-tertiary)}',
+    '.dvb-history-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:inherit;font-size:12px;line-height:26px;color:var(--dsw-alias-label-primary);text-align:left}',
+    '.dvb-history-del{flex:none;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;padding:0;border:0;border-radius:4px;background:transparent;color:var(--dsw-alias-label-tertiary);font:inherit;font-size:13px;line-height:1;cursor:pointer;opacity:0;transition:opacity .1s ease,background .1s ease,color .1s ease}',
+    '.dvb-history-item:hover .dvb-history-del,.dvb-history-item-on .dvb-history-del{opacity:1}',
+    '.dvb-history-del:hover,.dvb-history-del:focus-visible{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));color:var(--dsw-alias-label-primary);opacity:1}',
     // ---- stage ----------------------------------------------------------
     '.dvb-stage{position:relative;--dvb-scale:1;flex:1 1 auto;min-height:120px;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:8px;background:var(--dsw-alias-bg-layer-1);border-top:1px solid var(--dsw-alias-border-l1);border-bottom:1px solid var(--dsw-alias-border-l1);outline:none}',
     '.dvb-stage[data-focus="true"]{background:var(--dsw-alias-interactive-bg-hover)}',
@@ -495,6 +504,41 @@
 
       function shortUrl(value) {
         return String(value || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
+      }
+
+      /** Host of a history entry: "example.com", or the bare url when it is odd. */
+      function urlHost(value) {
+        try {
+          var parsed = new URL(String(value || ''));
+          return parsed.host || parsed.hostname || shortUrl(value);
+        } catch {
+          return shortUrl(value);
+        }
+      }
+
+      /** The address-bar history row: one line, "title - example.com". */
+      function historyLabel(entry) {
+        var host = urlHost(entry && entry.url);
+        var title = String((entry && entry.title) || '').trim();
+        if (host === '') return title;
+        if (title === '' || title === host) return host;
+        return title + ' - ' + host;
+      }
+
+      /**
+       * Prefix match for the history dropdown: an empty box shows everything, a
+       * filled one narrows to urls/titles that start with what was typed. The
+       * scheme and a leading "www." are ignored, so "exa" still finds
+       * https://example.com.
+       */
+      function historyPrefixMatch(entry, query) {
+        var needle = String(query || '').trim().toLowerCase();
+        if (needle === '') return true;
+        var bare = needle.replace(/^[a-z][a-z0-9+.-]*:\/\//, '').replace(/^www\./, '');
+        var url = String((entry && entry.url) || '').toLowerCase();
+        var short = shortUrl(url).replace(/^www\./, '');
+        var title = String((entry && entry.title) || '').trim().toLowerCase();
+        return url.startsWith(needle) || short.startsWith(bare) || (title !== '' && title.startsWith(needle));
       }
 
       /**
@@ -1126,8 +1170,12 @@
         var [tabOrder, setTabOrder] = useState(null);
         var [toast, setToast] = useState('');
         // URL-bar browsing history dropdown (shows while the input is focused).
+        // `historyQuery` is the text the list is filtered by: it follows what the
+        // user typed, but not the url that arrow-key selection writes into the
+        // box, so picking entries with the keyboard does not collapse the list.
         var [historyOpen, setHistoryOpen] = useState(false);
         var [historyIndex, setHistoryIndex] = useState(-1);
+        var [historyQuery, setHistoryQuery] = useState('');
         var historyListRef = useRef(null);
 
         var rootRef = useRef(null);
@@ -2229,15 +2277,62 @@
           }, 0);
         };
 
-        // Highlight the history entry that currently matches the draft (first
-        // match), or none, when opening the dropdown for the first time.
-        var previewIndexFromDraft = function () {
-          if (draft.trim() === '') return -1;
-          var wanted = draft.trim();
-          for (var i = 0; i < historyEntries.length; i++) {
-            if (historyEntries[i].url === wanted || shortUrl(historyEntries[i].url) === shortUrl(wanted)) return i;
+        // Open the history dropdown for the text currently in the box: an empty
+        // box lists everything, a filled one is filtered by prefix.
+        var openHistory = function (query) {
+          setHistoryQuery(query);
+          setHistoryOpen(true);
+          setHistoryIndex(-1);
+          if (historyListRef.current) historyListRef.current.scrollTop = 0;
+        };
+
+        // What the list should be filtered by when the box is clicked: the text
+        // in it, except that a box still showing the current page's own url
+        // counts as empty — focusing it should reveal the whole history instead
+        // of a list filtered by the page itself.
+        var draftQuery = function () {
+          var value = draft.trim();
+          if (value === '') return '';
+          if (!dirty && state.url && value === state.url) return '';
+          return draft;
+        };
+
+        // Move the keyboard selection and write the picked url into the box.
+        var stepHistory = function (delta) {
+          var count = historyList.length;
+          if (count === 0) {
+            setHistoryOpen(true);
+            setHistoryIndex(-1);
+            return;
           }
-          return -1;
+          var next;
+          if (delta > 0) next = historyIndex < 0 ? 0 : Math.min(count - 1, historyIndex + 1);
+          else next = historyIndex < 0 ? count - 1 : Math.max(0, historyIndex - 1);
+          setHistoryOpen(true);
+          setHistoryIndex(next);
+          setDirty(true);
+          setDraft(historyList[next].url);
+          // The url replaces the box content; keep the caret at its end so the
+          // next keystroke continues editing instead of landing mid-url.
+          toDraftEnd();
+        };
+
+        // Open the picked row: the url goes to the host and the list closes.
+        var pickHistory = function (entry) {
+          setDirty(false);
+          setHistoryOpen(false);
+          setHistoryIndex(-1);
+          setDraft(entry.url);
+          void run('open', '/start', { url: entry.url });
+        };
+
+        // Forget one row (its × button, or Delete on the highlighted row). The
+        // page itself is untouched; the box goes back to what was being typed.
+        var forgetHistory = function (entry) {
+          setHistoryIndex(-1);
+          setDirty(historyQuery !== '');
+          setDraft(historyQuery);
+          void run('history-remove', '/history', { action: 'remove', url: entry.url });
         };
 
         var retryStream = function () {
@@ -2998,12 +3093,32 @@
 
         var consoleEntries = Array.isArray(state.console) ? state.console : [];
         var historyEntries = Array.isArray(state.history) ? state.history : [];
-        // A "start tab": the active page still sits on about:blank and the
-        // panel switches to the minimal new-tab layout (URL box only).
-        var activeIsBlank =
-          state.running &&
-          (pages.length === 0 ||
-            (pages.length === 1 && (state.url === 'about:blank' || state.url === '')));
+        // The dropdown rows: the whole history for an empty box, the entries
+        // that start with what was typed otherwise. Capped so a long history
+        // still opens instantly.
+        var historyList = useMemo(
+          function () {
+            var matches =
+              historyQuery === ''
+                ? historyEntries
+                : historyEntries.filter(function (entry) {
+                    return historyPrefixMatch(entry, historyQuery);
+                  });
+            return matches.slice(0, HISTORY_ROWS);
+          },
+          [historyEntries, historyQuery],
+        );
+        // Keep the arrow-key selection visible inside the scrolling list.
+        useEffect(
+          function () {
+            if (!historyOpen || historyIndex < 0) return;
+            var list = historyListRef.current;
+            if (!list) return;
+            var node = list.children[historyIndex];
+            if (node && typeof node.scrollIntoView === 'function') node.scrollIntoView({ block: 'nearest' });
+          },
+          [historyIndex, historyOpen],
+        );
         // The local animation lock is authoritative; the host's own flag only
         // matters for operations that outlive their animation (navigation) or
         // when the cue stream is down.
@@ -3168,12 +3283,19 @@
                 placeholder: t('url.placeholder'),
                 value: draft,
                 onChange: function (event) {
+                  var value = event.target.value;
                   setDirty(true);
-                  setDraft(event.target.value);
+                  setDraft(value);
+                  // Typing re-filters: the box content is the prefix.
+                  openHistory(value);
+                },
+                // A focused box also answers a plain click, so closing the list
+                // and clicking the box again brings it back.
+                onClick: function () {
+                  openHistory(draftQuery());
                 },
                 onFocus: function () {
-                  setHistoryOpen(true);
-                  setHistoryIndex(previewIndexFromDraft());
+                  openHistory(draftQuery());
                 },
                 onBlur: function (event) {
                   var next = event.relatedTarget;
@@ -3182,73 +3304,92 @@
                   setHistoryIndex(-1);
                 },
                 onKeyDown: function (event) {
-                  if (activeIsBlank) {
-                    if (event.key === 'ArrowDown') {
-                      event.preventDefault();
-                      setHistoryOpen(true);
-                      setHistoryIndex(function (value) {
-                        return historyEntries.length === 0 ? -1 : Math.min(historyEntries.length - 1, value + 1);
-                      });
-                      return;
-                    }
-                    if (event.key === 'ArrowUp') {
-                      event.preventDefault();
-                      setHistoryIndex(function (value) {
-                        return historyEntries.length === 0 ? -1 : Math.max(0, value === -1 ? historyEntries.length - 1 : value - 1);
-                      });
-                      return;
-                    }
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      if (historyIndex >= 0 && historyIndex < historyEntries.length) {
-                        var picked = historyEntries[historyIndex];
-                        setDirty(false);
-                        setDraft(picked.url);
-                        // Selecting with the keyboard fills the box and keeps it
-                        // focused without navigating: the user may edit it.
-                        toDraftEnd();
-                      } else {
-                        openOrStart();
-                      }
-                      return;
-                    }
+                  // Arrow keys walk the list in every tab (not just a fresh
+                  // one) and write the picked url into the box.
+                  if (event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    stepHistory(1);
+                    return;
+                  }
+                  if (event.key === 'ArrowUp') {
+                    event.preventDefault();
+                    stepHistory(-1);
+                    return;
+                  }
+                  if (event.key === 'Escape') {
+                    if (!historyOpen) return;
+                    event.preventDefault();
+                    setHistoryOpen(false);
+                    setHistoryIndex(-1);
+                    setDirty(historyQuery !== '');
+                    setDraft(historyQuery);
+                    return;
+                  }
+                  // Delete forgets the highlighted row without leaving the box.
+                  if (event.key === 'Delete') {
+                    if (!historyOpen || historyIndex < 0 || historyIndex >= historyList.length) return;
+                    event.preventDefault();
+                    forgetHistory(historyList[historyIndex]);
+                    return;
                   }
                   if (event.key === 'Enter') {
                     event.preventDefault();
+                    var picked =
+                      historyOpen && historyIndex >= 0 && historyIndex < historyList.length
+                        ? historyList[historyIndex]
+                        : null;
+                    if (picked !== null) {
+                      setHistoryOpen(false);
+                      setHistoryIndex(-1);
+                      setDirty(false);
+                      setDraft(picked.url);
+                      void run('open', '/start', { url: picked.url });
+                      return;
+                    }
                     openOrStart();
                   }
                 },
               }),
-              historyOpen && !activeIsBlank
-                ? null
-                : historyOpen && historyEntries.length > 0 && activeIsBlank
-                  ? h(
-                      'div',
-                      { key: 'dvb-history', className: 'dvb-history', ref: historyListRef, role: 'listbox' },
-                      historyEntries.map(function (entry, index) {
-                        return h(
+              historyOpen && historyList.length > 0
+                ? h(
+                    'div',
+                    { key: 'dvb-history', className: 'dvb-history', ref: historyListRef, role: 'listbox' },
+                    historyList.map(function (entry, index) {
+                      return h(
+                        'div',
+                        {
+                          key: entry.url + '#' + index,
+                          className: 'dvb-history-item' + (index === historyIndex ? ' dvb-history-item-on' : ''),
+                          role: 'option',
+                          'aria-selected': String(index === historyIndex),
+                          title: entry.url,
+                          onMouseDown: function (event) {
+                            event.preventDefault();
+                            pickHistory(entry);
+                          },
+                        },
+                        h('span', { className: 'dvb-history-label' }, historyLabel(entry)),
+                        h(
                           'button',
                           {
-                            key: entry.url,
                             type: 'button',
-                            role: 'option',
-                            'aria-selected': String(index === historyIndex),
-                            className: 'dvb-history-item' + (index === historyIndex ? ' dvb-history-item-on' : ''),
+                            className: 'dvb-history-del',
+                            tabIndex: -1,
+                            title: t('history.remove'),
+                            'aria-label': t('history.remove'),
+                            // Removing must not also open the row underneath.
                             onMouseDown: function (event) {
                               event.preventDefault();
-                              setDirty(false);
-                              setDraft(entry.url);
-                              void run('open', '/start', { url: entry.url });
-                              setHistoryOpen(false);
-                              setHistoryIndex(-1);
+                              event.stopPropagation();
+                              forgetHistory(entry);
                             },
                           },
-                          h('span', { className: 'dvb-history-title' }, entry.title || shortUrl(entry.url) || entry.url),
-                          h('span', { className: 'dvb-history-url' }, shortUrl(entry.url) || entry.url),
-                        );
-                      }),
-                    )
-                  : null,
+                          '×',
+                        ),
+                      );
+                    }),
+                  )
+                : null,
             ),
             busy ? h('span', { key: 'busy', className: 'dvb-status' }, t('busy')) : null,
             h(
