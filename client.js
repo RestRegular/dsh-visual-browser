@@ -249,6 +249,13 @@
     // bottom edge) while the pointer comes near the bottom of the strip.
     '.dvb-tabs-thumb{position:absolute;bottom:0;height:3px;min-width:16px;border-radius:999px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 26%,transparent);transition:height .14s ease,background .14s ease}',
     '.dvb-tabs-scroll[data-wide="true"] .dvb-tabs-thumb{height:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 38%,transparent)}',
+    // The pill is a real handle, not just an indicator: it takes the pointer
+    // where it is drawn (at rest it sits inside the strip's bottom padding, so
+    // tab clicks stay whole) and its invisible ::before widens the grab area
+    // left/right and a hair upwards without stealing a tab row.
+    '.dvb-tabs-scroll[data-on="true"] .dvb-tabs-thumb{pointer-events:auto;cursor:grab;touch-action:none}',
+    '.dvb-tabs-thumb::before{content:"";position:absolute;left:-4px;right:-4px;top:-2px;bottom:0;border-radius:999px}',
+    '.dvb-tabs-scroll[data-dragging="true"] .dvb-tabs-thumb{cursor:grabbing;height:6px;background:color-mix(in srgb,var(--dsw-alias-label-primary) 46%,transparent)}',
     '.dvb-tab{position:relative;flex:none;display:flex;align-items:center;gap:2px;height:26px;padding:0 3px 0 9px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11.5px;max-width:180px;min-width:0;cursor:pointer;transition:background .12s ease,border-color .12s ease,color .12s ease,box-shadow .12s ease,transform .17s cubic-bezier(.2,0,0,1);touch-action:none;user-select:none;-webkit-user-select:none}',
     '.dvb-tab:hover{background:var(--dsw-alias-interactive-bg-hover);border-color:var(--dsw-alias-border-l2);color:var(--dsw-alias-label-primary)}',
     '.dvb-tab[data-current="true"]{background:var(--dsw-alias-interactive-bg-active,var(--dsw-alias-interactive-bg-hover));border-color:var(--dsw-alias-border-l3);color:var(--dsw-alias-label-primary)}',
@@ -1264,6 +1271,12 @@
         // True while the pointer is near the strip's bottom edge, which is the
         // only time the thin bar thickens.
         var [tabsNear, setTabsNear] = useState(false);
+        // True while the bar is being dragged, so it thickens and shows the
+        // grabbing cursor even before the next pointer move arrives.
+        var [tabsScrollDragging, setTabsScrollDragging] = useState(false);
+        // Live drag bookkeeping: pointer id, the strip the bar drives and the
+        // track/thumb geometry measured at the press.
+        var tabsScrollDragRef = useRef(null);
         var addrRef = useRef(null);
         var stageRef = useRef(null);
         var canvasRef = useRef(null);
@@ -2579,6 +2592,14 @@
         // with the tabs). `.dvb-tabs-scroll` sits on the wrapper instead and
         // mirrors `scrollLeft`: it floats over the strip's bottom padding, so
         // the strip is never taller than its tabs.
+        // The thumb has `min-width` so a long strip still leaves a grabbable
+        // pill; flooring its percent share the same way keeps the drawn width
+        // and the drag maths on one scale (otherwise the pill would be wider
+        // than its promised share and the handle would jump at the far end).
+        var TABS_BAR_MIN_THUMB = 16;
+        // The track is inset 8px from the strip on each side (`left/right` in CSS).
+        var TABS_BAR_INSET = 16;
+
         var syncTabsScroll = function () {
           var strip = tabsRef.current;
           if (!strip) return;
@@ -2591,7 +2612,11 @@
             });
             return;
           }
-          var length = Math.min(100, Math.max(6, (view / total) * 100));
+          var trackWidth = Math.max(1, view - TABS_BAR_INSET);
+          var length = Math.min(
+            100,
+            Math.max(6, (view / total) * 100, (TABS_BAR_MIN_THUMB / trackWidth) * 100),
+          );
           var pos = (strip.scrollLeft / (total - view)) * (100 - length);
           var next = { length: Math.round(length * 100) / 100, pos: Math.round(pos * 100) / 100 };
           setTabsScroll(function (previous) {
@@ -2642,6 +2667,102 @@
             return previous === false ? previous : false;
           });
         };
+
+        // ---- tab strip: dragging the floating bar --------------------------
+        // The bar is a real scrollbar: a press on the thumb and a drag across
+        // its travel scroll the strip. The thumb's travel (track width minus
+        // its own width) maps linearly onto the strip's whole overflow, so the
+        // handle stays under the pointer for the entire drag.
+        var detachTabsScrollDrag = function () {
+          window.removeEventListener('pointermove', onTabsScrollPointerMove, { passive: false });
+          window.removeEventListener('pointerup', onTabsScrollPointerUp);
+          window.removeEventListener('pointercancel', onTabsScrollPointerUp);
+        };
+
+        var onTabsScrollPointerMove = function (event) {
+          var drag = tabsScrollDragRef.current;
+          if (drag === null || event.pointerId !== drag.pointerId) return;
+          if (event.cancelable) event.preventDefault();
+          var travel = drag.trackWidth - drag.thumbWidth;
+          if (travel <= 0) return;
+          var left = Math.min(travel, Math.max(0, event.clientX - drag.trackLeft - drag.grabOffset));
+          // Writing `scrollLeft` is enough: the strip's scroll event feeds
+          // `syncTabsScroll`, so the handle and the tabs never disagree.
+          drag.strip.scrollLeft = (left / travel) * drag.maxScroll;
+        };
+
+        var onTabsScrollPointerUp = function (event) {
+          var drag = tabsScrollDragRef.current;
+          if (drag === null || (event.pointerId !== undefined && event.pointerId !== drag.pointerId)) return;
+          detachTabsScrollDrag();
+          tabsScrollDragRef.current = null;
+          if (drag.thumb && typeof drag.thumb.releasePointerCapture === 'function') {
+            try {
+              drag.thumb.releasePointerCapture(drag.pointerId);
+            } catch (error) {
+              /* a synthetic pointer was never captured; nothing to release */
+            }
+          }
+          setTabsScrollDragging(function (previous) {
+            return previous === false ? previous : false;
+          });
+        };
+
+        var onTabsScrollThumbPointerDown = function (event) {
+          if (event.button !== 0 || locked) return;
+          var strip = tabsRef.current;
+          var thumb = event.currentTarget;
+          var track = thumb && thumb.parentElement;
+          if (!strip || !track) return;
+          var view = strip.clientWidth;
+          var maxScroll = strip.scrollWidth - view;
+          if (view <= 0 || maxScroll <= 1) return;
+          var trackBox = track.getBoundingClientRect();
+          var thumbBox = thumb.getBoundingClientRect();
+          tabsScrollDragRef.current = {
+            pointerId: event.pointerId,
+            strip: strip,
+            thumb: thumb,
+            trackLeft: trackBox.left,
+            trackWidth: trackBox.width,
+            thumbWidth: thumbBox.width,
+            // Grab the pill where the press landed instead of snapping its
+            // leading edge under the pointer.
+            grabOffset: event.clientX - thumbBox.left,
+            maxScroll: maxScroll,
+          };
+          // Keep the press out of the tab strip: a drag on the bar is never a
+          // tab click or a tab reorder.
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof thumb.setPointerCapture === 'function') {
+            try {
+              thumb.setPointerCapture(event.pointerId);
+            } catch (error) {
+              /* real capture needs a live pointer; the window listeners still work */
+            }
+          }
+          setTabsScrollDragging(function (previous) {
+            return previous === true ? previous : true;
+          });
+          window.addEventListener('pointermove', onTabsScrollPointerMove, { passive: false });
+          window.addEventListener('pointerup', onTabsScrollPointerUp);
+          window.addEventListener('pointercancel', onTabsScrollPointerUp);
+        };
+
+        // A panel that closes (or a page that swaps out) mid-drag must not
+        // leave the window listeners behind.
+        useEffect(
+          function () {
+            return function () {
+              if (tabsScrollDragRef.current !== null) {
+                detachTabsScrollDrag();
+                tabsScrollDragRef.current = null;
+              }
+            };
+          },
+          [],
+        );
 
         // Once the host reports the order a drop previewed, the local overlay
         // has done its job; keeping it longer would mask a new tab or a close.
@@ -3667,10 +3788,14 @@
                 className: 'dvb-tabs-scroll',
                 'data-on': String(tabsScroll !== null),
                 'data-wide': String(tabsNear),
+                'data-dragging': String(tabsScrollDragging),
                 'aria-hidden': 'true',
               },
               h('span', {
                 className: 'dvb-tabs-thumb',
+                // A drag here is a scrollbar drag: it never becomes a tab press
+                // (the handler stops propagation at the thumb).
+                onPointerDown: onTabsScrollThumbPointerDown,
                 style:
                   tabsScroll === null
                     ? undefined
