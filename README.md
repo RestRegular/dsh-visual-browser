@@ -56,7 +56,9 @@ dependencies; it talks CDP over the built-in WebSocket).
    URL and press Enter) plus back / forward / reload / **new page** / stop / and
    **跟随 / Follow** — the takeover switch described below. A
    tab strip always shows (even with one page): ＋ adds a page, a chip switches
-   to it, its × closes it (the last page stays).
+   to it, its × closes it (the last page stays) and the strip falls back to the
+   tab on its left — or, when the leftmost page goes, to the one that takes its
+   place.
    The whole rounded chip is the hit area — a click anywhere on it (padding,
    icon, title) switches pages, and dragging from anywhere on it reorders the
    strip (the × keeps its own click and close). Right-click a chip for refresh /
