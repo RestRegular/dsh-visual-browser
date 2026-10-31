@@ -66,6 +66,6 @@
   "license": "MIT",
   "author": "RestRegular",
   "scripts": {
-    "test": "node --check index.js && node --check client.js && node --check lib/browser.js && node --check lib/launch.js && node --check lib/tools.js && node test/format.test.mjs && node test/scripts.test.mjs && node test/routes.test.mjs && node test/tools.test.mjs && node test/package.test.mjs && node test/gesture.test.mjs && node test/launch.test.mjs"
+    "test": "node --check index.js && node --check client.js && node --check lib/annotations.js && node --check lib/annotation-scripts.js && node --check lib/browser.js && node --check lib/launch.js && node --check lib/tools.js && node test/format.test.mjs && node test/scripts.test.mjs && node test/routes.test.mjs && node test/tools.test.mjs && node test/gesture.test.mjs && node test/launch.test.mjs && node --test test/annotations.test.mjs"
   }
 }
