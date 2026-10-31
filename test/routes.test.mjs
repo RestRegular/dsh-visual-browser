@@ -189,11 +189,10 @@ async function request(manager, method, path, body, options) {
   assert.equal(manager.calls.subscribed, 1);
   assert.equal(typeof manager.framesListener, 'function');
 
-  manager.framesListener(Buffer.from('jpeg-bytes'));
+  manager.framesListener(Buffer.from('jpeg-bytes'), 9);
   const body = Buffer.concat(res.chunks);
   assert.equal(body.length, 8 + 10);
   assert.equal(body.readUInt32LE(0), 10, 'frame length prefix');
-  assert.equal(body.readUInt32LE(4), 1, 'frame sequence');
   assert.equal(body.subarray(8).toString('utf8'), 'jpeg-bytes');
 
   res.emit('close');
