@@ -4,5 +4,7 @@ node_modules/
 .dsh-trash
 *.log
 .DS_Store
-dsh-visual-browser-*.tgz
+restregular-dsh-visual-browser-*.tgz
 .dsh-probe/
+chrome-profile/
+annotations.json

@@ -5,7 +5,8 @@
  * same-origin API the panel reads. The panel itself is `client.js`.
  */
 
-import { BrowserManager } from './lib/browser.js';
+import path from 'node:path';
+import { BrowserManager, defaultUserDataDir } from './lib/browser.js';
 import { mountRoutes } from './lib/routes.js';
 import { browserTools } from './lib/tools.js';
 
@@ -74,5 +75,8 @@ export function apply(ctx, config = {}) {
     logger?.warn?.(`[visual-browser] tool registration failed: ${error?.message ?? error}`);
   }
 
-  mountRoutes(ctx, manager, { resolveScope: scopeOfSession });
+  mountRoutes(ctx, manager, {
+    resolveScope: scopeOfSession,
+    annotationPath: path.join(config.userDataDir || defaultUserDataDir(), 'annotations.json'),
+  });
 }
