@@ -84,7 +84,11 @@ the box. Each row is one line, “title - example.com”, cut with an ellipsis;
 clicking a row fills the box and opens it in one go. ↑/↓ walk the list and write
 the picked URL into the box, Enter opens it, Esc closes the list and restores the
 box. Hovering a row reveals a × that forgets just that entry (Delete does the
-same for the highlighted row); the page itself stays open.
+same for the highlighted row); the page itself stays open. The list is kept per
+workspace (a bare Session gets its own) and survives host restarts: it is
+written to `~/.dsh/visual-browser/visit-history.json`, newest first, at most 50
+rows per scope — the whole list the dropdown shows — and the oldest scopes are
+dropped once the file holds 50 of them.
 
 **Reference a page in the chat** — right-click its tab and pick “引用到对话框 /
 Reference in the chat”. The page drops into the composer as one atomic browser
@@ -256,6 +260,8 @@ Row config (in the profile's `cordis.patch.yml`, override by row id
     extraArgs: []             # extra Chrome switches, appended last
     executablePath: ''        # explicit chrome.exe path
     userDataDir: ''           # default: ~/.dsh/visual-browser/chrome-profile
+    historyFile: ''           # default: ~/.dsh/visual-browser/visit-history.json
+    historyLimit: 50          # rows kept per workspace scope (1-500)
     viewport:
       width: 1280
       height: 800
